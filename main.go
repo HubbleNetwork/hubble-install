@@ -30,6 +30,7 @@ func main() {
 
 	// Print welcome banner
 	ui.PrintBanner()
+	fmt.Println()
 
 	// Handle clean flag (remove dependencies and exit with verbose output)
 	if cleanFlag {
@@ -53,6 +54,23 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Show what will happen
+	ui.PrintInfo("This installer will:")
+	fmt.Println("  • Check for required dependencies (Homebrew, uv, SEGGER J-Link)")
+	fmt.Println("  • Install any missing dependencies")
+	fmt.Println("  • Verify your developer board is connected")
+	fmt.Println("  • Let you select your developer board model")
+	fmt.Println("  • Configure your Hubble credentials")
+	fmt.Println("  • Flash your board and add it to your organization")
+	fmt.Println()
+
+	// Prompt user to continue
+	if !ui.PromptYesNo("Ready to install?", true) {
+		ui.PrintWarning("Installation cancelled")
+		os.Exit(0)
+	}
+	fmt.Println()
+
 	// Start timer for the installation
 	startTime := time.Now()
 
@@ -62,7 +80,7 @@ func main() {
 
 	// Track current step number dynamically
 	currentStep := 0
-	
+
 	// Detect platform silently (already detected by install script)
 	installer, err := platform.GetInstaller()
 	if err != nil {
