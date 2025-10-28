@@ -16,6 +16,21 @@ This will:
 3. Run the installer immediately
 4. Clean up after completion
 
+### Environment Variables
+
+Set these to skip credential prompts:
+
+```bash
+export HUBBLE_ORG_ID="your-org-id"
+export HUBBLE_API_TOKEN="your-api-token"
+hubble-install
+```
+
+Or use them inline:
+```bash
+HUBBLE_ORG_ID="your-org-id" HUBBLE_API_TOKEN="your-token" hubble-install
+```
+
 ### Command Line Flags
 
 ```bash
@@ -32,6 +47,9 @@ Flags:
 ```bash
 # Normal installation
 hubble-install
+
+# With environment variables (skips prompts)
+HUBBLE_ORG_ID="org123" HUBBLE_API_TOKEN="token456" hubble-install
 
 # Clean only (removes dependencies with verbose output and exits)
 hubble-install -clean
