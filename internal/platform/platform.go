@@ -40,6 +40,9 @@ type Installer interface {
 	// CleanDependencies removes uv and segger-jlink and clears Homebrew cache
 	CleanDependencies() error
 
+	// CheckJLinkProbe checks if a J-Link probe is connected
+	CheckJLinkProbe() bool
+
 	// FlashBoard flashes the specified board with credentials
 	FlashBoard(orgID, apiToken, board string) error
 

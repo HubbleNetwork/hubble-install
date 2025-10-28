@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
@@ -232,6 +233,19 @@ func (d *DarwinInstaller) InstallDependencies() error {
 	}
 
 	return nil
+}
+
+// CheckJLinkProbe checks if a J-Link probe is connected
+func (d *DarwinInstaller) CheckJLinkProbe() bool {
+	// Use ioreg (fast, works on macOS 10.5+)
+	cmd := exec.Command("ioreg", "-p", "IOUSB", "-l", "-w", "0")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+	outputStr := strings.ToLower(string(output))
+	// Look for SEGGER
+	return strings.Contains(outputStr, "segger")
 }
 
 // FlashBoard flashes the specified board using uvx

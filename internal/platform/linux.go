@@ -40,6 +40,11 @@ func (l *LinuxInstaller) CleanDependencies() error {
 	return fmt.Errorf("linux platform not yet implemented")
 }
 
+// CheckJLinkProbe checks if a J-Link probe is connected (placeholder)
+func (l *LinuxInstaller) CheckJLinkProbe() bool {
+	return true // Placeholder - always return true
+}
+
 // FlashBoard is not implemented for Linux yet
 func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) error {
 	return fmt.Errorf("linux platform not yet implemented")

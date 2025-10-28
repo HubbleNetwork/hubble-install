@@ -12,7 +12,7 @@ import (
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
 )
 
-const totalSteps = 6
+const totalSteps = 7
 
 var (
 	cleanFlag bool
@@ -73,44 +73,9 @@ func main() {
 		ui.PrintDebug(fmt.Sprintf("Step 1 took: %v", time.Since(stepStart)))
 	}
 
-	// Step 2: Get credentials
+	// Step 2: Check prerequisites
 	stepStart = time.Now()
-	ui.PrintStep("Configuring credentials", 2, totalSteps)
-	cfg, err := config.PromptForConfig()
-	if err != nil {
-		ui.PrintError(fmt.Sprintf("Configuration failed: %v", err))
-		os.Exit(1)
-	}
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 2 took: %v", time.Since(stepStart)))
-	}
-
-	// Step 3: Select board
-	stepStart = time.Now()
-	ui.PrintStep("Selecting developer board", 3, totalSteps)
-	boardOptions := make([]string, len(boards.AvailableBoards))
-	for i, board := range boards.AvailableBoards {
-		boardOptions[i] = fmt.Sprintf("%s - %s (%s)", board.Name, board.Description, board.Vendor)
-	}
-
-	selectedIndex := ui.PromptChoice("Available developer boards:", boardOptions)
-	selectedBoard := boards.AvailableBoards[selectedIndex]
-	cfg.Board = selectedBoard.ID
-
-	ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 3 took: %v", time.Since(stepStart)))
-	}
-
-	// Validate configuration
-	if err := cfg.Validate(); err != nil {
-		ui.PrintError(fmt.Sprintf("Invalid configuration: %v", err))
-		os.Exit(1)
-	}
-
-	// Step 4: Check prerequisites
-	stepStart = time.Now()
-	ui.PrintStep("Checking prerequisites", 4, totalSteps)
+	ui.PrintStep("Checking prerequisites", 2, totalSteps)
 	missing, err := installer.CheckPrerequisites()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Prerequisites check failed: %v", err))
@@ -132,13 +97,13 @@ func main() {
 		ui.PrintSuccess("All prerequisites satisfied")
 	}
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 4 took: %v", time.Since(stepStart)))
+		ui.PrintDebug(fmt.Sprintf("Step 2 took: %v", time.Since(stepStart)))
 	}
 
-	// Step 5: Install dependencies
+	// Step 3: Install dependencies
 	if len(missing) > 0 {
 		stepStart = time.Now()
-		ui.PrintStep("Installing dependencies", 5, totalSteps)
+		ui.PrintStep("Installing dependencies", 3, totalSteps)
 
 		// Check if we need to install package manager first
 		needsPackageManager := false
@@ -164,8 +129,87 @@ func main() {
 
 		ui.PrintSuccess("All dependencies installed")
 		if debugFlag {
-			ui.PrintDebug(fmt.Sprintf("Step 5 took: %v", time.Since(stepStart)))
+			ui.PrintDebug(fmt.Sprintf("Step 3 took: %v", time.Since(stepStart)))
 		}
+	}
+
+	// Step 4: Check J-Link probe
+	stepStart = time.Now()
+	ui.PrintStep("Checking for J-Link probe", 4, totalSteps)
+
+	// Retry loop for probe detection
+	probeDetected := false
+	for !probeDetected {
+		if installer.CheckJLinkProbe() {
+			ui.PrintSuccess("J-Link probe detected")
+			probeDetected = true
+		} else {
+			ui.PrintWarning("No J-Link probe detected")
+			ui.PrintInfo("Please ensure:")
+			ui.PrintInfo("  • Developer board is connected via USB")
+			ui.PrintInfo("  • Using a data cable (not charge-only)")
+			ui.PrintInfo("  • Board is powered on")
+			fmt.Println()
+
+			// Ask what to do
+			options := []string{
+				"Retry - Check for probe again",
+				"Continue anyway - Proceed without probe",
+				"Exit - Cancel installation",
+			}
+			choice := ui.PromptChoice("What would you like to do?", options)
+
+			switch choice {
+			case 0: // Retry
+				fmt.Println()
+				ui.PrintInfo("Checking again...")
+				continue
+			case 1: // Continue anyway
+				ui.PrintWarning("Continuing without probe detection")
+				probeDetected = true
+			case 2: // Exit
+				os.Exit(0)
+			}
+		}
+	}
+
+	if debugFlag {
+		ui.PrintDebug(fmt.Sprintf("Step 4 took: %v", time.Since(stepStart)))
+	}
+
+	// Step 5: Get credentials
+	stepStart = time.Now()
+	ui.PrintStep("Configuring credentials", 5, totalSteps)
+	cfg, err := config.PromptForConfig()
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Configuration failed: %v", err))
+		os.Exit(1)
+	}
+	if debugFlag {
+		ui.PrintDebug(fmt.Sprintf("Step 5 took: %v", time.Since(stepStart)))
+	}
+
+	// Step 6: Select board
+	stepStart = time.Now()
+	ui.PrintStep("Selecting developer board", 6, totalSteps)
+	boardOptions := make([]string, len(boards.AvailableBoards))
+	for i, board := range boards.AvailableBoards {
+		boardOptions[i] = fmt.Sprintf("%s - %s (%s)", board.Name, board.Description, board.Vendor)
+	}
+
+	selectedIndex := ui.PromptChoice("Available developer boards:", boardOptions)
+	selectedBoard := boards.AvailableBoards[selectedIndex]
+	cfg.Board = selectedBoard.ID
+
+	ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
+	if debugFlag {
+		ui.PrintDebug(fmt.Sprintf("Step 6 took: %v", time.Since(stepStart)))
+	}
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		ui.PrintError(fmt.Sprintf("Invalid configuration: %v", err))
+		os.Exit(1)
 	}
 
 	// Confirm before flashing
@@ -177,15 +221,15 @@ func main() {
 		os.Exit(0)
 	}
 
-	// Step 6: Flash the board
+	// Step 7: Flash the board
 	stepStart = time.Now()
-	ui.PrintStep("Flashing board", 6, totalSteps)
+	ui.PrintStep("Flashing board", 7, totalSteps)
 	if err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board); err != nil {
 		ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
 		os.Exit(1)
 	}
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 6 took: %v", time.Since(stepStart)))
+		ui.PrintDebug(fmt.Sprintf("Step 7 took: %v", time.Since(stepStart)))
 	}
 
 	// Verify installation
