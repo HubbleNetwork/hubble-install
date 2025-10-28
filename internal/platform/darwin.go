@@ -238,20 +238,20 @@ func (d *DarwinInstaller) InstallDependencies() error {
 func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board string) error {
 	ui.PrintInfo(fmt.Sprintf("Flashing board: %s", board))
 	ui.PrintInfo("This may take 10-15 seconds...")
-	
+
 	// Find the uv binary location
 	uvPath, err := exec.LookPath("uv")
 	if err != nil {
 		return fmt.Errorf("uv not found in PATH: %w", err)
 	}
-	
+
 	if IsDebugMode() {
 		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
 	}
-	
+
 	// Build the command - use 'uv tool run' instead of 'uvx'
 	cmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken)
-	
+
 	// Suppress Python warnings (SyntaxWarning, DeprecationWarning, etc.)
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
 

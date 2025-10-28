@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/fatih/color"
@@ -62,8 +61,19 @@ func PrintDebug(message string) {
 	gray.Printf("🔍 [DEBUG] %s\n", message)
 }
 
-// Global reader for stdin to avoid recreating
-var stdinReader = bufio.NewReader(os.Stdin)
+// Global reader for interactive input
+var stdinReader *bufio.Reader
+
+func init() {
+	// Try to open /dev/tty for interactive input (works when piped from curl)
+	tty, err := os.Open("/dev/tty")
+	if err == nil {
+		stdinReader = bufio.NewReader(tty)
+	} else {
+		// Fallback to stdin if /dev/tty is not available
+		stdinReader = bufio.NewReader(os.Stdin)
+	}
+}
 
 // PromptInput prompts the user for input
 func PromptInput(prompt string) string {
@@ -80,12 +90,50 @@ func PromptInput(prompt string) string {
 // PromptPassword prompts the user for a password (masked input)
 func PromptPassword(prompt string) string {
 	cyan.Printf("? %s: ", prompt)
-	bytePassword, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println() // Add newline after password input
+
+	// Try to open /dev/tty for password input
+	tty, err := os.Open("/dev/tty")
 	if err != nil {
-		return ""
+		// Fallback to regular input if /dev/tty not available
+		PrintWarning("Cannot access terminal, reading password as plain text")
+		input, err := stdinReader.ReadString('\n')
+		if err != nil {
+			PrintError(fmt.Sprintf("Failed to read password: %v", err))
+			os.Exit(1)
+		}
+		return strings.TrimSpace(input)
 	}
-	return string(bytePassword)
+	defer tty.Close()
+
+	fd := int(tty.Fd())
+
+	// Check if it's actually a terminal
+	if !term.IsTerminal(fd) {
+		// Not a terminal, fall back to regular input
+		PrintWarning("Not a terminal, reading password as plain text")
+		input, err := stdinReader.ReadString('\n')
+		if err != nil {
+			PrintError(fmt.Sprintf("Failed to read password: %v", err))
+			os.Exit(1)
+		}
+		return strings.TrimSpace(input)
+	}
+
+	// Terminal mode - read password with masking from /dev/tty
+	bytePassword, err := term.ReadPassword(fd)
+	fmt.Println() // Add newline after password input
+
+	if err != nil {
+		PrintError(fmt.Sprintf("Failed to read password: %v", err))
+		os.Exit(1)
+	}
+
+	result := string(bytePassword)
+	if result == "" {
+		PrintDebug("Empty password received from term.ReadPassword")
+	}
+
+	return result
 }
 
 // PromptYesNo prompts the user for a yes/no answer
@@ -94,7 +142,7 @@ func PromptYesNo(question string, defaultYes bool) bool {
 	if !defaultYes {
 		defaultStr = "y/N"
 	}
-	
+
 	for {
 		cyan.Printf("? %s (%s): ", question, defaultStr)
 		response, err := stdinReader.ReadString('\n')
@@ -103,7 +151,7 @@ func PromptYesNo(question string, defaultYes bool) bool {
 			os.Exit(1)
 		}
 		response = strings.TrimSpace(strings.ToLower(response))
-		
+
 		if response == "" {
 			return defaultYes
 		}
@@ -124,7 +172,7 @@ func PromptChoice(prompt string, options []string) int {
 	for i, option := range options {
 		fmt.Printf("%d. %s\n", i+1, option)
 	}
-	
+
 	for {
 		cyan.Printf("? Select (1-%d): ", len(options))
 		response, err := stdinReader.ReadString('\n')
@@ -133,7 +181,7 @@ func PromptChoice(prompt string, options []string) int {
 			os.Exit(1)
 		}
 		response = strings.TrimSpace(response)
-		
+
 		var choice int
 		_, err = fmt.Sscanf(response, "%d", &choice)
 		if err == nil && choice >= 1 && choice <= len(options) {

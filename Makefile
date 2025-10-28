@@ -1,6 +1,6 @@
 # Makefile for Hubble Installer
 
-.PHONY: all build clean test run run-debug run-clean install deps help
+.PHONY: all build clean test run run-debug run-clean install deps upload-s3 help
 
 # Variables
 BINARY_NAME=hubble-install
@@ -65,6 +65,10 @@ uninstall:
 	@sudo rm -f /usr/local/bin/$(BINARY_NAME)
 	@echo "✓ Uninstalled"
 
+# Upload to S3
+upload-s3:
+	@./scripts/upload-to-s3.sh
+
 # Format code
 fmt:
 	@echo "Formatting code..."
@@ -94,6 +98,7 @@ help:
 	@echo "  clean            - Remove build artifacts"
 	@echo "  install          - Install to /usr/local/bin (requires sudo)"
 	@echo "  uninstall        - Remove from /usr/local/bin (requires sudo)"
+	@echo "  upload-s3        - Upload install.sh and binaries to S3"
 	@echo "  fmt              - Format Go code"
 	@echo "  lint             - Lint Go code (requires golangci-lint)"
 	@echo "  help             - Show this help message"

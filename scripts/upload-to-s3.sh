@@ -1,24 +1,61 @@
 #!/bin/bash
-# Upload install.sh to S3 bucket
+# Upload install.sh and binaries to S3 bucket
 set -e
 
 BUCKET_NAME="hubble-install"
+BIN_DIR="bin"
 
-echo "📦 Uploading install.sh to S3..."
+# Check if binaries exist
+if [ ! -d "$BIN_DIR" ]; then
+    echo "❌ Error: bin/ directory not found. Run ./scripts/build.sh first."
+    exit 1
+fi
+
+echo "🚀 Uploading to S3 bucket: ${BUCKET_NAME}"
+echo ""
+
+# Upload install.sh
+echo "📦 Uploading install.sh..."
 aws s3 cp scripts/install.sh s3://${BUCKET_NAME}/install.sh \
   --content-type "text/x-shellscript" \
   --cache-control "max-age=300"
-
-echo "✓ Upload complete!"
+echo "✓ install.sh uploaded"
 echo ""
-echo "🔒 Applying bucket policy (make install.sh public)..."
+
+# Upload binaries
+echo "📦 Uploading binaries..."
+for binary in ${BIN_DIR}/*; do
+    filename=$(basename "$binary")
+    echo "  → $filename"
+    aws s3 cp "$binary" "s3://${BUCKET_NAME}/${filename}" \
+        --content-type "application/octet-stream" \
+        --cache-control "max-age=300"
+done
+echo "✓ All binaries uploaded"
+echo ""
+
+# Apply bucket policy
+echo "🔒 Applying bucket policy (make all files public)..."
 aws s3api put-bucket-policy --bucket ${BUCKET_NAME} --policy file://bucket-policy.json
+echo "✓ Bucket policy applied"
+echo ""
 
-echo "✓ Bucket policy applied!"
+# Summary
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "✅ Upload complete!"
 echo ""
-echo "🌍 Public URL:"
-echo "   https://${BUCKET_NAME}.s3.amazonaws.com/install.sh"
+echo "🌍 Public URLs:"
 echo ""
-echo "Test with:"
+echo "  Installer script:"
+echo "    https://${BUCKET_NAME}.s3.amazonaws.com/install.sh"
+echo ""
+echo "  Binaries:"
+for binary in ${BIN_DIR}/*; do
+    filename=$(basename "$binary")
+    echo "    https://${BUCKET_NAME}.s3.amazonaws.com/${filename}"
+done
+echo ""
+echo "Test installation:"
 echo "   curl -fsSL https://${BUCKET_NAME}.s3.amazonaws.com/install.sh | bash"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
