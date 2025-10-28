@@ -1,5 +1,6 @@
 #!/bin/bash
 # Upload install.sh and binaries to S3 bucket
+# Note: Bucket policy should already be configured to make all files public
 set -e
 
 BUCKET_NAME="hubble-install"
@@ -32,12 +33,6 @@ for binary in ${BIN_DIR}/*; do
         --cache-control "max-age=300"
 done
 echo "✓ All binaries uploaded"
-echo ""
-
-# Apply bucket policy
-echo "🔒 Applying bucket policy (make all files public)..."
-aws s3api put-bucket-policy --bucket ${BUCKET_NAME} --policy file://bucket-policy.json
-echo "✓ Bucket policy applied"
 echo ""
 
 # Summary
