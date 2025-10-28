@@ -216,24 +216,30 @@ func PrintCompletionBanner(duration time.Duration, orgID, apiToken string, debug
 	cyan.Println("To flash more devices:")
 	fmt.Println()
 
-	// Option 1: Use environment variables (recommended)
-	fmt.Print("  1. Set credentials as environment variables (recommended):\n")
+	// Recommend installing globally for shorter commands
+	fmt.Print("  1. Install hubbledemo CLI (one-time setup):\n     ")
+	bold.Println("uv tool install pyhubbledemo")
+	fmt.Println()
+	fmt.Print("     Then set credentials as environment variables:\n")
 	fmt.Printf("     ")
 	bold.Printf("export HUBBLE_ORG_ID=%s\n", orgID)
 	fmt.Printf("     ")
 	bold.Println("export HUBBLE_API_TOKEN=<your_token>")
 	fmt.Println()
-	fmt.Print("     Then flash additional boards:\n     ")
-	bold.Println("uv tool run --from pyhubbledemo hubbledemo flash <board>")
+	fmt.Print("     And use the shorter command:\n     ")
+	bold.Println("hubbledemo flash <board>")
 	fmt.Println()
 
-	// Option 2: Use credentials directly
-	fmt.Print("  2. Or use credentials directly:\n     ")
+	// Option 2: Use full command without installation
+	fmt.Print("  2. Or use the full command without installation:\n     ")
 	bold.Printf("uv tool run --from pyhubbledemo hubbledemo flash <board> -o %s -t <your_token>\n", orgID)
 	fmt.Println()
 
 	fmt.Print("  3. View available commands:\n     ")
-	bold.Println("uv tool run --from pyhubbledemo hubbledemo --help")
+	bold.Println("hubbledemo --help")
+	fmt.Print("     (or ")
+	fmt.Print("uv tool run --from pyhubbledemo hubbledemo --help")
+	fmt.Println(" if not installed)")
 	fmt.Println()
 
 	yellow.Println("Need help? Visit https://hubble.com/support/")
