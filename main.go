@@ -217,7 +217,7 @@ func main() {
 	ui.PrintSuccess("All prerequisites installed!")
 	if !ui.PromptYesNo(fmt.Sprintf("Would you like to flash and add your %s to your Hubble Network organization?", selectedBoard.Name), true) {
 		ui.PrintWarning("Flashing skipped. You can flash later using:")
-		fmt.Printf("  uvx --from pyhubbledemo hubbledemo flash %s -o <org_id> -t <api_token>\n", cfg.Board)
+		fmt.Printf("  uv tool run --from pyhubbledemo hubbledemo flash %s -o %s -t <your_token>\n", cfg.Board, cfg.OrgID)
 		os.Exit(0)
 	}
 
@@ -243,7 +243,7 @@ func main() {
 	duration := time.Since(startTime)
 
 	// Print completion banner
-	ui.PrintCompletionBanner(duration)
+	ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, debugFlag)
 
 	// Success!
 	os.Exit(0)

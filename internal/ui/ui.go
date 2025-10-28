@@ -192,25 +192,48 @@ func PromptChoice(prompt string, options []string) int {
 }
 
 // PrintCompletionBanner prints the success completion banner
-func PrintCompletionBanner(duration time.Duration) {
+func PrintCompletionBanner(duration time.Duration, orgID, apiToken string, debugMode bool) {
 	green.Println(`
 ╔═══════════════════════════════════════════════════════════╗
 ║     ✓ Installation Complete!                              ║
 ╚═══════════════════════════════════════════════════════════╝
 `)
 
-	cyan.Printf("⏱️  Total time: %.1f seconds\n\n", duration.Seconds())
+	if debugMode {
+		cyan.Printf("⏱️  Total time: %.1f seconds\n\n", duration.Seconds())
+	}
 
-	cyan.Println("Next steps:")
+	// Main message
 	fmt.Println()
-	fmt.Print("  1. Flash additional boards:\n     ")
+	green.Println("🎉 You're all set!")
+	fmt.Println()
+	cyan.Print("Return to ")
+	bold.Print("dash.hubble.com")
+	cyan.Println(" for further instructions!")
+	fmt.Println()
+
+	// Instructions for flashing more devices
+	cyan.Println("To flash more devices:")
+	fmt.Println()
+
+	// Option 1: Use environment variables (recommended)
+	fmt.Print("  1. Set credentials as environment variables (recommended):\n")
+	fmt.Printf("     ")
+	bold.Printf("export HUBBLE_ORG_ID=%s\n", orgID)
+	fmt.Printf("     ")
+	bold.Println("export HUBBLE_API_TOKEN=<your_token>")
+	fmt.Println()
+	fmt.Print("     Then flash additional boards:\n     ")
 	bold.Println("uv tool run --from pyhubbledemo hubbledemo flash <board>")
 	fmt.Println()
-	fmt.Print("  2. View available commands:\n     ")
-	bold.Println("uv tool run --from pyhubbledemo hubbledemo --help")
+
+	// Option 2: Use credentials directly
+	fmt.Print("  2. Or use credentials directly:\n     ")
+	bold.Printf("uv tool run --from pyhubbledemo hubbledemo flash <board> -o %s -t <your_token>\n", orgID)
 	fmt.Println()
-	fmt.Print("  3. Documentation:\n     ")
-	bold.Println("https://docs.hubble.com")
+
+	fmt.Print("  3. View available commands:\n     ")
+	bold.Println("uv tool run --from pyhubbledemo hubbledemo --help")
 	fmt.Println()
 
 	yellow.Println("Need help? Visit https://hubble.com/support/")
