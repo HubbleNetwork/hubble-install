@@ -60,9 +60,13 @@ func main() {
 		ui.PrintDebug(fmt.Sprintf("Installation start time: %s", startTime.Format(time.RFC3339)))
 	}
 
+	// Track current step number dynamically
+	currentStep := 0
+
 	// Step 1: Detect platform
+	currentStep++
 	stepStart := time.Now()
-	ui.PrintStep("Detecting platform", 1, totalSteps)
+	ui.PrintStep("Detecting platform", currentStep, totalSteps)
 	installer, err := platform.GetInstaller()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Platform detection failed: %v", err))
@@ -70,12 +74,13 @@ func main() {
 	}
 	ui.PrintSuccess(fmt.Sprintf("Platform detected: %s", installer.Name()))
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 1 took: %v", time.Since(stepStart)))
+		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
 	// Step 2: Check prerequisites
+	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Checking prerequisites", 2, totalSteps)
+	ui.PrintStep("Checking prerequisites", currentStep, totalSteps)
 	missing, err := installer.CheckPrerequisites()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Prerequisites check failed: %v", err))
@@ -97,13 +102,14 @@ func main() {
 		ui.PrintSuccess("All prerequisites satisfied")
 	}
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 2 took: %v", time.Since(stepStart)))
+		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
-	// Step 3: Install dependencies
+	// Step 3: Install dependencies (only if needed)
 	if len(missing) > 0 {
+		currentStep++
 		stepStart = time.Now()
-		ui.PrintStep("Installing dependencies", 3, totalSteps)
+		ui.PrintStep("Installing dependencies", currentStep, totalSteps)
 
 		// Check if we need to install package manager first
 		needsPackageManager := false
@@ -129,13 +135,14 @@ func main() {
 
 		ui.PrintSuccess("All dependencies installed")
 		if debugFlag {
-			ui.PrintDebug(fmt.Sprintf("Step 3 took: %v", time.Since(stepStart)))
+			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 		}
 	}
 
 	// Step 4: Check J-Link probe
+	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Checking for J-Link probe", 4, totalSteps)
+	ui.PrintStep("Checking for J-Link probe", currentStep, totalSteps)
 
 	// Retry loop for probe detection
 	probeDetected := false
@@ -174,24 +181,26 @@ func main() {
 	}
 
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 4 took: %v", time.Since(stepStart)))
+		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
 	// Step 5: Get credentials
+	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Configuring credentials", 5, totalSteps)
+	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
 	cfg, err := config.PromptForConfig()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Configuration failed: %v", err))
 		os.Exit(1)
 	}
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 5 took: %v", time.Since(stepStart)))
+		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
 	// Step 6: Select board
+	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Selecting developer board", 6, totalSteps)
+	ui.PrintStep("Selecting developer board", currentStep, totalSteps)
 	boardOptions := make([]string, len(boards.AvailableBoards))
 	for i, board := range boards.AvailableBoards {
 		boardOptions[i] = fmt.Sprintf("%s - %s (%s)", board.Name, board.Description, board.Vendor)
@@ -203,7 +212,7 @@ func main() {
 
 	ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 6 took: %v", time.Since(stepStart)))
+		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
 	// Validate configuration
@@ -222,14 +231,15 @@ func main() {
 	}
 
 	// Step 7: Flash the board
+	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Flashing board", 7, totalSteps)
+	ui.PrintStep("Flashing board", currentStep, totalSteps)
 	if err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board); err != nil {
 		ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
 		os.Exit(1)
 	}
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step 7 took: %v", time.Since(stepStart)))
+		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
 	// Verify installation
