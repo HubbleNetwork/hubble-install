@@ -2,6 +2,15 @@
 
 Cross-platform installer for Hubble Network developer boards. Flash Nordic and Silicon Labs boards in under 30 seconds.
 
+> **Note:** This installer depends on [pyhubbledemo](https://github.com/HubbleNetwork/pyhubbledemo) for board flashing and requires firmware binaries from [hubble-tldm](https://github.com/HubbleNetwork/hubble-tldm).
+
+## TODO
+
+- [ ] **Add GPG signing for binaries** to verify origin (note: GPG verification code itself can be removed in supply chain attack, so binaries should be self-verified via code signing)
+- [ ] **More secure API token handling** - currently passed as CLI argument (visible in process list); consider file descriptor or stdin approach
+- [ ] **Linux implementation** - use apt/yum for package management, install uv via pip/curl, and segger-jlink from official packages
+- [ ] **Windows implementation** - use Chocolatey or Scoop for package management, install uv and segger-jlink, handle Windows-specific paths and permissions
+
 ## Quick Start
 
 ### One-Line Install (macOS/Linux)
