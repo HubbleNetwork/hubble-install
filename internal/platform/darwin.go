@@ -96,28 +96,10 @@ func (d *DarwinInstaller) CleanDependencies() error {
 			cmd.Stderr = os.Stderr
 		}
 
-		brewErr := cmd.Run()
-
-		// Also try removing uv's standalone installation
-		uvPath, _ := exec.LookPath("uv")
-		if uvPath != "" {
-			if IsDebugMode() {
-				ui.PrintDebug(fmt.Sprintf("Found uv at: %s", uvPath))
-			}
-
-			// Remove the binary
-			if err := os.Remove(uvPath); err != nil && IsDebugMode() {
-				ui.PrintDebug(fmt.Sprintf("Could not remove %s: %v", uvPath, err))
-			}
-		}
-
-		// Remove uv data directory
-		uvDir := os.ExpandEnv("$HOME/.local/bin/uv")
-		if _, err := os.Stat(uvDir); err == nil {
-			if IsDebugMode() {
-				ui.PrintDebug(fmt.Sprintf("Removing: %s", uvDir))
-			}
-			os.Remove(uvDir)
+		if err := cmd.Run(); err != nil {
+			errors = append(errors, fmt.Sprintf("failed to remove uv: %v", err))
+		} else {
+			ui.PrintSuccess("uv removed")
 		}
 
 		// Remove uv cache
@@ -127,14 +109,6 @@ func (d *DarwinInstaller) CleanDependencies() error {
 				ui.PrintDebug(fmt.Sprintf("Removing cache: %s", uvCache))
 			}
 			os.RemoveAll(uvCache)
-		}
-
-		// Check if uv still exists
-		if d.commandExists("uv") {
-			errors = append(errors, fmt.Sprintf("failed to completely remove uv (brew error: %v)", brewErr))
-			ui.PrintWarning("uv may still be partially installed")
-		} else {
-			ui.PrintSuccess("uv removed")
 		}
 	}
 
