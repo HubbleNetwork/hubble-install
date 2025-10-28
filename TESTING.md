@@ -112,6 +112,7 @@ export PATH="/usr/local/bin:$PATH"     # for Intel
 
 ### Issue: Board flashing fails
 **Possible causes:**
+- Micro-USB cable not Micro-USB 2.0 or not a proper data cable. Use a Micro-USB 2.0 to USB-A data cable for best results (orientation matters).
 - Invalid Org ID or API Token
 - Board not connected
 - Wrong board selected
