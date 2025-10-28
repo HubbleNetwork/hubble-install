@@ -12,7 +12,7 @@ import (
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
 )
 
-const totalSteps = 7
+const totalSteps = 6
 
 var (
 	cleanFlag bool
@@ -62,24 +62,17 @@ func main() {
 
 	// Track current step number dynamically
 	currentStep := 0
-
-	// Step 1: Detect platform
-	currentStep++
-	stepStart := time.Now()
-	ui.PrintStep("Detecting platform", currentStep, totalSteps)
+	
+	// Detect platform silently (already detected by install script)
 	installer, err := platform.GetInstaller()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Platform detection failed: %v", err))
 		os.Exit(1)
 	}
-	ui.PrintSuccess(fmt.Sprintf("Platform detected: %s", installer.Name()))
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-	}
 
-	// Step 2: Check prerequisites
+	// Step 1: Check prerequisites
 	currentStep++
-	stepStart = time.Now()
+	stepStart := time.Now()
 	ui.PrintStep("Checking prerequisites", currentStep, totalSteps)
 	missing, err := installer.CheckPrerequisites()
 	if err != nil {
