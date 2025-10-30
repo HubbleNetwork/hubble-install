@@ -25,6 +25,29 @@ func (d *DarwinInstaller) Name() string {
 	return "macOS"
 }
 
+// ensureSudoAccess validates sudo access upfront to avoid multiple password prompts
+func (d *DarwinInstaller) ensureSudoAccess() error {
+	// Check if we already have valid sudo credentials
+	checkCmd := exec.Command("sudo", "-n", "true")
+	if err := checkCmd.Run(); err == nil {
+		// Already have valid sudo, no need to prompt
+		return nil
+	}
+
+	// Need to prompt for password
+	ui.PrintWarning("Administrator access required for installation")
+	cmd := exec.Command("sudo", "-v")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to obtain sudo access: %w", err)
+	}
+
+	return nil
+}
+
 // CheckPrerequisites checks for missing dependencies
 func (d *DarwinInstaller) CheckPrerequisites() ([]MissingDependency, error) {
 	var missing []MissingDependency
@@ -63,17 +86,31 @@ func (d *DarwinInstaller) InstallPackageManager() error {
 		return nil
 	}
 
-	ui.PrintInfo("Installing Homebrew...")
-	ui.PrintWarning("This may require your password and will take a few minutes")
+	// Ensure we have sudo access upfront (single password prompt)
+	// The Homebrew script will use sudo internally when needed (e.g., for Xcode Command Line Tools)
+	if err := d.ensureSudoAccess(); err != nil {
+		return err
+	}
 
-	// Run the official Homebrew installation script
-	cmd := exec.Command("/bin/bash", "-c", `$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)`)
+	ui.PrintInfo("Installing Homebrew...")
+	ui.PrintInfo("This may take a few minutes...")
+
+	// Run the official Homebrew installation script as regular user (not sudo)
+	// The script will internally use sudo when needed, using our cached credentials
+	// NONINTERACTIVE=1 suppresses the "running in noninteractive mode" warning
+	cmd := exec.Command("/bin/bash", "-c", `NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to install Homebrew: %w", err)
+	}
+
+	// Add Homebrew to PATH for this process
+	if err := d.setupBrewPath(); err != nil {
+		ui.PrintWarning(fmt.Sprintf("Could not update PATH: %v", err))
+		ui.PrintInfo("You may need to restart your terminal after installation")
 	}
 
 	ui.PrintSuccess("Homebrew installed successfully")
@@ -293,6 +330,34 @@ func (d *DarwinInstaller) Verify() error {
 func (d *DarwinInstaller) commandExists(cmd string) bool {
 	_, err := exec.LookPath(cmd)
 	return err == nil
+}
+
+// setupBrewPath adds Homebrew to PATH for the current process
+func (d *DarwinInstaller) setupBrewPath() error {
+	// Detect Homebrew installation path based on architecture
+	// Apple Silicon: /opt/homebrew
+	// Intel: /usr/local
+	var brewPath string
+	if _, err := os.Stat("/opt/homebrew/bin/brew"); err == nil {
+		brewPath = "/opt/homebrew/bin"
+	} else if _, err := os.Stat("/usr/local/bin/brew"); err == nil {
+		brewPath = "/usr/local/bin"
+	} else {
+		return fmt.Errorf("brew not found in expected locations")
+	}
+
+	// Update PATH for this process
+	currentPath := os.Getenv("PATH")
+	if !strings.Contains(currentPath, brewPath) {
+		newPath := brewPath + ":" + currentPath
+		os.Setenv("PATH", newPath)
+
+		if IsDebugMode() {
+			ui.PrintDebug(fmt.Sprintf("Added %s to PATH", brewPath))
+		}
+	}
+
+	return nil
 }
 
 // runBrewInstall runs a brew install command
