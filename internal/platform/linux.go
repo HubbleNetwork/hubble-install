@@ -7,9 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
 )
@@ -22,13 +20,6 @@ const (
 	PackageManagerAPT                    // Debian, Ubuntu, etc.
 	PackageManagerYUM                    // RHEL, CentOS (older)
 	PackageManagerDNF                    // Fedora, RHEL 8+
-)
-
-const (
-	// SEGGER J-Link version and download info
-	jlinkVersion    = "V812d"
-	jlinkBaseURL    = "https://www.segger.com/downloads/jlink"
-	jlinkInstallDir = "opt/SEGGER"
 )
 
 // LinuxInstaller implements the Installer interface for Linux
@@ -142,54 +133,39 @@ func (l *LinuxInstaller) InstallDependencies() error {
 		return err
 	}
 
-	// Install uv and segger-jlink in parallel for speed
-	var wg sync.WaitGroup
-	errChan := make(chan error, 2)
-
-	// Install uv
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if l.commandExists("uv") {
-			ui.PrintSuccess("uv already installed")
-			return
-		}
-
-		ui.PrintInfo("Installing uv...")
-		if err := l.installPackage("uv", false); err != nil {
-			errChan <- fmt.Errorf("failed to install uv: %w", err)
-			return
+	// Install uv (must be installed via astral.sh installer)
+	if !l.commandExists("uv") {
+		ui.PrintInfo("Installing uv from astral.sh...")
+		if err := l.installUV(); err != nil {
+			return fmt.Errorf("failed to install uv: %w", err)
 		}
 		ui.PrintSuccess("uv installed successfully")
-	}()
+	} else {
+		ui.PrintSuccess("uv already installed")
+	}
 
-	// Install segger-jlink (must be downloaded from SEGGER website)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if l.commandExists("JLinkExe") {
-			ui.PrintSuccess("segger-jlink already installed")
-			return
+	// Check for segger-jlink (cannot auto-install - requires manual download from SEGGER)
+	if !l.commandExists("JLinkExe") {
+		ui.PrintWarning("SEGGER J-Link not found")
+		ui.PrintInfo("J-Link must be downloaded manually from: https://www.segger.com/downloads/jlink/")
+		ui.PrintInfo("After downloading, install with:")
+
+		switch l.pkgManager {
+		case PackageManagerAPT:
+			ui.PrintInfo("  sudo dpkg -i JLink_Linux_*.deb")
+		case PackageManagerDNF:
+			ui.PrintInfo("  sudo dnf install JLink_Linux_*.rpm")
+		case PackageManagerYUM:
+			ui.PrintInfo("  sudo yum install JLink_Linux_*.rpm")
+		default:
+			ui.PrintInfo("  tar xzf JLink_Linux_*.tgz -C ~/opt/SEGGER")
+			ui.PrintInfo("  sudo cp ~/opt/SEGGER/JLink*/99-jlink.rules /etc/udev/rules.d/")
 		}
 
-		ui.PrintInfo("Installing SEGGER J-Link (this may take a few minutes)...")
-		ui.PrintInfo("Downloading from segger.com...")
-		if err := l.installJLink(); err != nil {
-			errChan <- fmt.Errorf("failed to install segger-jlink: %w", err)
-			return
-		}
-		ui.PrintSuccess("segger-jlink installed successfully")
-	}()
-
-	// Wait for both installations to complete
-	wg.Wait()
-	close(errChan)
-
-	// Check for errors
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
+		// Don't fail, just warn
+		ui.PrintWarning("Continuing without J-Link - you'll need to install it manually for flashing")
+	} else {
+		ui.PrintSuccess("segger-jlink already installed")
 	}
 
 	return nil
@@ -204,22 +180,30 @@ func (l *LinuxInstaller) CleanDependencies() error {
 		return err
 	}
 
-	// Uninstall uv if present
+	// Uninstall uv if present (installed via astral.sh, not package manager)
 	if l.commandExists("uv") {
 		ui.PrintInfo("Removing uv...")
-		if err := l.removePackage("uv"); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to remove uv: %v", err))
-		} else {
-			ui.PrintSuccess("uv removed")
+
+		homeDir := os.Getenv("HOME")
+		uvBinary := filepath.Join(homeDir, ".cargo", "bin", "uv")
+
+		if _, err := os.Stat(uvBinary); err == nil {
+			if err := os.Remove(uvBinary); err != nil {
+				errors = append(errors, fmt.Sprintf("failed to remove uv binary: %v", err))
+			} else {
+				ui.PrintSuccess("uv removed")
+			}
 		}
 
 		// Remove uv cache
-		uvCache := os.ExpandEnv("$HOME/.cache/uv")
+		uvCache := filepath.Join(homeDir, ".cache", "uv")
 		if _, err := os.Stat(uvCache); err == nil {
 			if IsDebugMode() {
 				ui.PrintDebug(fmt.Sprintf("Removing cache: %s", uvCache))
 			}
-			os.RemoveAll(uvCache)
+			if err := os.RemoveAll(uvCache); err != nil {
+				errors = append(errors, fmt.Sprintf("failed to remove uv cache: %v", err))
+			}
 		}
 	}
 
@@ -248,7 +232,7 @@ func (l *LinuxInstaller) CleanDependencies() error {
 		} else {
 			// Remove TGZ installation
 			homeDir := os.Getenv("HOME")
-			jlinkDir := filepath.Join(homeDir, jlinkInstallDir)
+			jlinkDir := filepath.Join(homeDir, "opt/SEGGER")
 
 			if _, err := os.Stat(jlinkDir); err == nil {
 				ui.PrintInfo(fmt.Sprintf("Removing %s...", jlinkDir))
@@ -277,125 +261,31 @@ func (l *LinuxInstaller) CleanDependencies() error {
 	return nil
 }
 
-// installJLink downloads and installs SEGGER J-Link from segger.com
-func (l *LinuxInstaller) installJLink() error {
-	// Detect architecture
-	arch := runtime.GOARCH
-	var archSuffix string
-	switch arch {
-	case "amd64":
-		archSuffix = "x86_64"
-	case "386":
-		archSuffix = "i386"
-	case "arm64":
-		archSuffix = "arm64"
-	case "arm":
-		archSuffix = "arm"
-	default:
-		return fmt.Errorf("unsupported architecture: %s", arch)
+// installUV installs uv using the official astral.sh installer
+func (l *LinuxInstaller) installUV() error {
+	// Download and run the uv installer script
+	cmd := exec.Command("sh", "-c", "curl -LsSf https://astral.sh/uv/install.sh | sh")
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("uv installation failed: %w", err)
 	}
 
-	// Determine the best installer format based on package manager
-	var filename, installCmd string
+	// Add uv to PATH for current process
+	// The installer puts it in ~/.cargo/bin
 	homeDir := os.Getenv("HOME")
+	cargoPath := filepath.Join(homeDir, ".cargo", "bin")
 
-	switch l.pkgManager {
-	case PackageManagerAPT:
-		// Use DEB installer for Debian/Ubuntu
-		filename = fmt.Sprintf("JLink_Linux_%s_%s.deb", jlinkVersion, archSuffix)
-		installCmd = fmt.Sprintf("sudo dpkg -i %s", filepath.Join("/tmp", filename))
+	currentPath := os.Getenv("PATH")
+	if !strings.Contains(currentPath, cargoPath) {
+		os.Setenv("PATH", cargoPath+":"+currentPath)
 
-	case PackageManagerDNF, PackageManagerYUM:
-		// Use RPM installer for RHEL/Fedora/CentOS
-		filename = fmt.Sprintf("JLink_Linux_%s_%s.rpm", jlinkVersion, archSuffix)
-		if l.pkgManager == PackageManagerDNF {
-			installCmd = fmt.Sprintf("sudo dnf install -y %s", filepath.Join("/tmp", filename))
-		} else {
-			installCmd = fmt.Sprintf("sudo yum install -y %s", filepath.Join("/tmp", filename))
-		}
-
-	default:
-		// Fallback to TGZ archive (recommended by Eclipse CDT docs)
-		filename = fmt.Sprintf("JLink_Linux_%s_%s.tgz", jlinkVersion, archSuffix)
-		ui.PrintInfo("Using TGZ archive installation method (recommended)")
-	}
-
-	// Download URL
-	downloadURL := fmt.Sprintf("%s/%s", jlinkBaseURL, filename)
-	tmpPath := filepath.Join("/tmp", filename)
-
-	// Download the file
-	ui.PrintInfo(fmt.Sprintf("Downloading %s...", filename))
-	downloadCmd := exec.Command("curl", "-fsSL", "-o", tmpPath, downloadURL)
-	if IsDebugMode() {
-		ui.PrintDebug(fmt.Sprintf("Download command: %s", downloadCmd.String()))
-	}
-
-	if output, err := downloadCmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("failed to download J-Link: %w (output: %s)", err, string(output))
-	}
-
-	// Install based on format
-	if strings.HasSuffix(filename, ".tgz") {
-		// Manual TGZ installation (recommended by Eclipse CDT)
-		installDir := filepath.Join(homeDir, jlinkInstallDir)
-		if err := os.MkdirAll(installDir, 0755); err != nil {
-			return fmt.Errorf("failed to create install directory: %w", err)
-		}
-
-		ui.PrintInfo(fmt.Sprintf("Extracting to %s...", installDir))
-		extractCmd := exec.Command("tar", "xzf", tmpPath, "-C", installDir)
-		if err := extractCmd.Run(); err != nil {
-			return fmt.Errorf("failed to extract J-Link archive: %w", err)
-		}
-
-		// Setup UDEV rules
-		jlinkDir := filepath.Join(installDir, fmt.Sprintf("JLink_Linux_%s_%s", jlinkVersion, archSuffix))
-		udevRules := filepath.Join(jlinkDir, "99-jlink.rules")
-
-		if _, err := os.Stat(udevRules); err == nil {
-			ui.PrintInfo("Setting up UDEV rules...")
-			copyCmd := exec.Command("sudo", "cp", udevRules, "/etc/udev/rules.d/99-jlink.rules")
-			if err := copyCmd.Run(); err != nil {
-				ui.PrintWarning("Failed to copy UDEV rules - you may need to do this manually")
-			}
-
-			// Reload UDEV rules
-			reloadCmd := exec.Command("sudo", "udevadm", "control", "--reload-rules")
-			reloadCmd.Run()
-		}
-
-		// Add to PATH by creating symlinks (similar to macOS approach)
-		ui.PrintInfo("Adding J-Link to PATH...")
-		binaries := []string{"JLinkExe", "JLinkGDBServer", "JLinkRTTClient", "JLinkSWOViewer"}
-		for _, binary := range binaries {
-			src := filepath.Join(jlinkDir, binary)
-			if _, err := os.Stat(src); err == nil {
-				// Make executable
-				os.Chmod(src, 0755)
-			}
-		}
-
-		// Update PATH for current process
-		currentPath := os.Getenv("PATH")
-		if !strings.Contains(currentPath, jlinkDir) {
-			os.Setenv("PATH", jlinkDir+":"+currentPath)
-		}
-
-	} else {
-		// DEB or RPM installation
-		ui.PrintInfo("Installing package...")
-		cmd := exec.Command("sh", "-c", installCmd)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to install J-Link package: %w", err)
+		if IsDebugMode() {
+			ui.PrintDebug(fmt.Sprintf("Added %s to PATH", cargoPath))
 		}
 	}
-
-	// Cleanup
-	os.Remove(tmpPath)
 
 	return nil
 }
