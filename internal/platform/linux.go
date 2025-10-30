@@ -71,48 +71,7 @@ func (l *LinuxInstaller) CheckPrerequisites() ([]MissingDependency, error) {
 		return nil, fmt.Errorf("unsupported Linux distribution - only apt, dnf, and yum are supported")
 	}
 
-	// Check for uv
-	if !l.commandExists("uv") {
-		missing = append(missing, MissingDependency{
-			Name:   "uv",
-			Status: "Not installed",
-		})
-	}
-
-	// Check for JLink (from segger-jlink)
-	if !l.commandExists("JLinkExe") {
-		missing = append(missing, MissingDependency{
-			Name:   "segger-jlink",
-			Status: "Not installed",
-		})
-	}
-
-	return missing, nil
-}
-
-// InstallPackageManager is not needed for Linux (uv and jlink use direct installers)
-func (l *LinuxInstaller) InstallPackageManager() error {
-	// Both uv (astral.sh) and jlink (SEGGER) use their own installers
-	// No package manager operations needed
-	return nil
-}
-
-// InstallDependencies installs uv and checks for segger-jlink
-func (l *LinuxInstaller) InstallDependencies() error {
-	// Install uv (must be installed via astral.sh installer)
-	if !l.commandExists("uv") {
-		ui.PrintInfo("Installing dependencies for uv...")
-		if err := l.installUV(); err != nil {
-			return fmt.Errorf("failed to install uv: %w", err)
-		}
-		ui.PrintSuccess("uv installed successfully")
-	} else {
-		ui.PrintSuccess("uv already installed")
-	}
-
-	// Check for segger-jlink (cannot auto-install - requires manual download from SEGGER)
-	ui.PrintInfo("Checking for SEGGER J-Link...")
-
+	// Check for SEGGER J-Link FIRST (must be installed manually before proceeding)
 	if !l.commandExists("JLinkExe") {
 		fmt.Println("") // blank line for readability
 		ui.PrintError("SEGGER J-Link was not found")
@@ -134,10 +93,41 @@ func (l *LinuxInstaller) InstallDependencies() error {
 		}
 
 		fmt.Println("") // blank line
-		return fmt.Errorf("exiting installer: J-Link is required to continue")
+		return nil, fmt.Errorf("J-Link must be installed before running this installer")
 	}
 
-	ui.PrintSuccess("SEGGER J-Link found")
+	// Check for uv (can be auto-installed)
+	if !l.commandExists("uv") {
+		missing = append(missing, MissingDependency{
+			Name:   "uv",
+			Status: "Not installed",
+		})
+	}
+
+	return missing, nil
+}
+
+// InstallPackageManager is not needed for Linux (uv and jlink use direct installers)
+func (l *LinuxInstaller) InstallPackageManager() error {
+	// Both uv (astral.sh) and jlink (SEGGER) use their own installers
+	// No package manager operations needed
+	return nil
+}
+
+// InstallDependencies installs uv (J-Link already verified in CheckPrerequisites)
+func (l *LinuxInstaller) InstallDependencies() error {
+	// Install uv (must be installed via astral.sh installer)
+	if !l.commandExists("uv") {
+		ui.PrintInfo("Installing uv from astral.sh...")
+		if err := l.installUV(); err != nil {
+			return fmt.Errorf("failed to install uv: %w", err)
+		}
+		ui.PrintSuccess("uv installed successfully")
+	} else {
+		ui.PrintSuccess("uv already installed")
+	}
+
+	// J-Link was already verified in CheckPrerequisites, so we're good to go
 	return nil
 }
 
