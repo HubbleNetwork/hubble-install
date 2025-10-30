@@ -6,6 +6,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -20,6 +22,13 @@ const (
 	PackageManagerAPT                    // Debian, Ubuntu, etc.
 	PackageManagerYUM                    // RHEL, CentOS (older)
 	PackageManagerDNF                    // Fedora, RHEL 8+
+)
+
+const (
+	// SEGGER J-Link version and download info
+	jlinkVersion    = "V812d"
+	jlinkBaseURL    = "https://www.segger.com/downloads/jlink"
+	jlinkInstallDir = "opt/SEGGER"
 )
 
 // LinuxInstaller implements the Installer interface for Linux
@@ -154,7 +163,7 @@ func (l *LinuxInstaller) InstallDependencies() error {
 		ui.PrintSuccess("uv installed successfully")
 	}()
 
-	// Install segger-jlink
+	// Install segger-jlink (must be downloaded from SEGGER website)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -163,8 +172,9 @@ func (l *LinuxInstaller) InstallDependencies() error {
 			return
 		}
 
-		ui.PrintInfo("Installing segger-jlink (this may take a few minutes)...")
-		if err := l.installPackage("segger-jlink", true); err != nil {
+		ui.PrintInfo("Installing SEGGER J-Link (this may take a few minutes)...")
+		ui.PrintInfo("Downloading from segger.com...")
+		if err := l.installJLink(); err != nil {
 			errChan <- fmt.Errorf("failed to install segger-jlink: %w", err)
 			return
 		}
@@ -216,16 +226,176 @@ func (l *LinuxInstaller) CleanDependencies() error {
 	// Uninstall segger-jlink if present
 	if l.commandExists("JLinkExe") {
 		ui.PrintInfo("Removing segger-jlink...")
-		if err := l.removePackage("segger-jlink"); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to remove segger-jlink: %v", err))
+
+		// Check if installed via package manager (DEB/RPM)
+		var pkgInstalled bool
+		switch l.pkgManager {
+		case PackageManagerAPT:
+			checkCmd := exec.Command("dpkg", "-l", "jlink")
+			pkgInstalled = checkCmd.Run() == nil
+		case PackageManagerDNF, PackageManagerYUM:
+			checkCmd := exec.Command("rpm", "-q", "jlink")
+			pkgInstalled = checkCmd.Run() == nil
+		}
+
+		if pkgInstalled {
+			// Remove via package manager
+			if err := l.removeJLinkPackage(); err != nil {
+				errors = append(errors, fmt.Sprintf("failed to remove segger-jlink package: %v", err))
+			} else {
+				ui.PrintSuccess("segger-jlink package removed")
+			}
 		} else {
-			ui.PrintSuccess("segger-jlink removed")
+			// Remove TGZ installation
+			homeDir := os.Getenv("HOME")
+			jlinkDir := filepath.Join(homeDir, jlinkInstallDir)
+
+			if _, err := os.Stat(jlinkDir); err == nil {
+				ui.PrintInfo(fmt.Sprintf("Removing %s...", jlinkDir))
+				if err := os.RemoveAll(jlinkDir); err != nil {
+					errors = append(errors, fmt.Sprintf("failed to remove J-Link directory: %v", err))
+				} else {
+					ui.PrintSuccess("segger-jlink removed")
+				}
+
+				// Remove UDEV rules
+				udevRules := "/etc/udev/rules.d/99-jlink.rules"
+				if _, err := os.Stat(udevRules); err == nil {
+					rmCmd := exec.Command("sudo", "rm", udevRules)
+					if err := rmCmd.Run(); err != nil {
+						ui.PrintWarning("Failed to remove UDEV rules - you may need to remove manually")
+					}
+				}
+			}
 		}
 	}
 
 	if len(errors) > 0 {
 		return fmt.Errorf("cleanup completed with errors: %v", errors)
 	}
+
+	return nil
+}
+
+// installJLink downloads and installs SEGGER J-Link from segger.com
+func (l *LinuxInstaller) installJLink() error {
+	// Detect architecture
+	arch := runtime.GOARCH
+	var archSuffix string
+	switch arch {
+	case "amd64":
+		archSuffix = "x86_64"
+	case "386":
+		archSuffix = "i386"
+	case "arm64":
+		archSuffix = "arm64"
+	case "arm":
+		archSuffix = "arm"
+	default:
+		return fmt.Errorf("unsupported architecture: %s", arch)
+	}
+
+	// Determine the best installer format based on package manager
+	var filename, installCmd string
+	homeDir := os.Getenv("HOME")
+
+	switch l.pkgManager {
+	case PackageManagerAPT:
+		// Use DEB installer for Debian/Ubuntu
+		filename = fmt.Sprintf("JLink_Linux_%s_%s.deb", jlinkVersion, archSuffix)
+		installCmd = fmt.Sprintf("sudo dpkg -i %s", filepath.Join("/tmp", filename))
+
+	case PackageManagerDNF, PackageManagerYUM:
+		// Use RPM installer for RHEL/Fedora/CentOS
+		filename = fmt.Sprintf("JLink_Linux_%s_%s.rpm", jlinkVersion, archSuffix)
+		if l.pkgManager == PackageManagerDNF {
+			installCmd = fmt.Sprintf("sudo dnf install -y %s", filepath.Join("/tmp", filename))
+		} else {
+			installCmd = fmt.Sprintf("sudo yum install -y %s", filepath.Join("/tmp", filename))
+		}
+
+	default:
+		// Fallback to TGZ archive (recommended by Eclipse CDT docs)
+		filename = fmt.Sprintf("JLink_Linux_%s_%s.tgz", jlinkVersion, archSuffix)
+		ui.PrintInfo("Using TGZ archive installation method (recommended)")
+	}
+
+	// Download URL
+	downloadURL := fmt.Sprintf("%s/%s", jlinkBaseURL, filename)
+	tmpPath := filepath.Join("/tmp", filename)
+
+	// Download the file
+	ui.PrintInfo(fmt.Sprintf("Downloading %s...", filename))
+	downloadCmd := exec.Command("curl", "-fsSL", "-o", tmpPath, downloadURL)
+	if IsDebugMode() {
+		ui.PrintDebug(fmt.Sprintf("Download command: %s", downloadCmd.String()))
+	}
+
+	if output, err := downloadCmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to download J-Link: %w (output: %s)", err, string(output))
+	}
+
+	// Install based on format
+	if strings.HasSuffix(filename, ".tgz") {
+		// Manual TGZ installation (recommended by Eclipse CDT)
+		installDir := filepath.Join(homeDir, jlinkInstallDir)
+		if err := os.MkdirAll(installDir, 0755); err != nil {
+			return fmt.Errorf("failed to create install directory: %w", err)
+		}
+
+		ui.PrintInfo(fmt.Sprintf("Extracting to %s...", installDir))
+		extractCmd := exec.Command("tar", "xzf", tmpPath, "-C", installDir)
+		if err := extractCmd.Run(); err != nil {
+			return fmt.Errorf("failed to extract J-Link archive: %w", err)
+		}
+
+		// Setup UDEV rules
+		jlinkDir := filepath.Join(installDir, fmt.Sprintf("JLink_Linux_%s_%s", jlinkVersion, archSuffix))
+		udevRules := filepath.Join(jlinkDir, "99-jlink.rules")
+
+		if _, err := os.Stat(udevRules); err == nil {
+			ui.PrintInfo("Setting up UDEV rules...")
+			copyCmd := exec.Command("sudo", "cp", udevRules, "/etc/udev/rules.d/99-jlink.rules")
+			if err := copyCmd.Run(); err != nil {
+				ui.PrintWarning("Failed to copy UDEV rules - you may need to do this manually")
+			}
+
+			// Reload UDEV rules
+			reloadCmd := exec.Command("sudo", "udevadm", "control", "--reload-rules")
+			reloadCmd.Run()
+		}
+
+		// Add to PATH by creating symlinks (similar to macOS approach)
+		ui.PrintInfo("Adding J-Link to PATH...")
+		binaries := []string{"JLinkExe", "JLinkGDBServer", "JLinkRTTClient", "JLinkSWOViewer"}
+		for _, binary := range binaries {
+			src := filepath.Join(jlinkDir, binary)
+			if _, err := os.Stat(src); err == nil {
+				// Make executable
+				os.Chmod(src, 0755)
+			}
+		}
+
+		// Update PATH for current process
+		currentPath := os.Getenv("PATH")
+		if !strings.Contains(currentPath, jlinkDir) {
+			os.Setenv("PATH", jlinkDir+":"+currentPath)
+		}
+
+	} else {
+		// DEB or RPM installation
+		ui.PrintInfo("Installing package...")
+		cmd := exec.Command("sh", "-c", installCmd)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to install J-Link package: %w", err)
+		}
+	}
+
+	// Cleanup
+	os.Remove(tmpPath)
 
 	return nil
 }
@@ -374,6 +544,29 @@ func (l *LinuxInstaller) removePackage(pkg string) error {
 		cmd = exec.Command("sudo", "dnf", "remove", "-y", pkg)
 	case PackageManagerYUM:
 		cmd = exec.Command("sudo", "yum", "remove", "-y", pkg)
+	default:
+		return fmt.Errorf("unsupported package manager")
+	}
+
+	if IsDebugMode() {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+
+	return cmd.Run()
+}
+
+// removeJLinkPackage removes J-Link if installed via DEB/RPM package
+func (l *LinuxInstaller) removeJLinkPackage() error {
+	var cmd *exec.Cmd
+
+	switch l.pkgManager {
+	case PackageManagerAPT:
+		cmd = exec.Command("sudo", "dpkg", "-r", "jlink")
+	case PackageManagerDNF:
+		cmd = exec.Command("sudo", "dnf", "remove", "-y", "jlink")
+	case PackageManagerYUM:
+		cmd = exec.Command("sudo", "yum", "remove", "-y", "jlink")
 	default:
 		return fmt.Errorf("unsupported package manager")
 	}
