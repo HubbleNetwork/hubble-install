@@ -56,7 +56,7 @@ func main() {
 
 	// Show what will happen
 	ui.PrintInfo("This installer will:")
-	fmt.Println("  • Check for required dependencies (Homebrew, uv, SEGGER J-Link)")
+	fmt.Println("  • Check for required dependencies (uv, SEGGER J-Link)")
 	fmt.Println("  • Install any missing dependencies")
 	fmt.Println("  • Verify your developer board is connected")
 	fmt.Println("  • Let you select your developer board model")

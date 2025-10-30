@@ -90,52 +90,18 @@ func (l *LinuxInstaller) CheckPrerequisites() ([]MissingDependency, error) {
 	return missing, nil
 }
 
-// InstallPackageManager ensures package manager is up to date
+// InstallPackageManager is not needed for Linux (uv and jlink use direct installers)
 func (l *LinuxInstaller) InstallPackageManager() error {
-	// Package manager is already installed on Linux, just update package lists
-	if err := l.ensureSudoAccess(); err != nil {
-		return err
-	}
-
-	ui.PrintInfo("Updating package lists...")
-
-	var cmd *exec.Cmd
-	switch l.pkgManager {
-	case PackageManagerAPT:
-		cmd = exec.Command("sudo", "apt-get", "update", "-y")
-	case PackageManagerDNF:
-		cmd = exec.Command("sudo", "dnf", "check-update", "-y")
-	case PackageManagerYUM:
-		cmd = exec.Command("sudo", "yum", "check-update", "-y")
-	default:
-		return fmt.Errorf("unsupported package manager")
-	}
-
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	// Note: check-update returns non-zero if updates are available, so we ignore the error
-	cmd.Run()
-
-	ui.PrintSuccess("Package lists updated")
+	// Both uv (astral.sh) and jlink (SEGGER) use their own installers
+	// No package manager operations needed
 	return nil
 }
 
-// InstallDependencies installs uv and segger-jlink
+// InstallDependencies installs uv and checks for segger-jlink
 func (l *LinuxInstaller) InstallDependencies() error {
-	// Ensure we have sudo access
-	if err := l.ensureSudoAccess(); err != nil {
-		return err
-	}
-
-	// Update package lists first
-	if err := l.InstallPackageManager(); err != nil {
-		return err
-	}
-
 	// Install uv (must be installed via astral.sh installer)
 	if !l.commandExists("uv") {
-		ui.PrintInfo("Installing uv from astral.sh...")
+		ui.PrintInfo("Installing dependencies for uv...")
 		if err := l.installUV(); err != nil {
 			return fmt.Errorf("failed to install uv: %w", err)
 		}
@@ -145,9 +111,14 @@ func (l *LinuxInstaller) InstallDependencies() error {
 	}
 
 	// Check for segger-jlink (cannot auto-install - requires manual download from SEGGER)
+	ui.PrintInfo("Checking for SEGGER J-Link...")
+
 	if !l.commandExists("JLinkExe") {
-		ui.PrintWarning("SEGGER J-Link not found")
-		ui.PrintInfo("J-Link must be downloaded manually from: https://www.segger.com/downloads/jlink/")
+		fmt.Println("") // blank line for readability
+		ui.PrintError("SEGGER J-Link was not found")
+		ui.PrintInfo("Due to license requirements, it must be downloaded manually from:")
+		ui.PrintInfo("  https://www.segger.com/downloads/jlink/")
+		fmt.Println("") // blank line
 		ui.PrintInfo("After downloading, install with:")
 
 		switch l.pkgManager {
@@ -162,12 +133,11 @@ func (l *LinuxInstaller) InstallDependencies() error {
 			ui.PrintInfo("  sudo cp ~/opt/SEGGER/JLink*/99-jlink.rules /etc/udev/rules.d/")
 		}
 
-		// Don't fail, just warn
-		ui.PrintWarning("Continuing without J-Link - you'll need to install it manually for flashing")
-	} else {
-		ui.PrintSuccess("segger-jlink already installed")
+		fmt.Println("") // blank line
+		return fmt.Errorf("exiting installer: J-Link is required to continue")
 	}
 
+	ui.PrintSuccess("SEGGER J-Link found")
 	return nil
 }
 
