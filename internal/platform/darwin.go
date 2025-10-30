@@ -109,8 +109,18 @@ func (d *DarwinInstaller) InstallPackageManager() error {
 
 	// Add Homebrew to PATH for this process
 	if err := d.setupBrewPath(); err != nil {
-		ui.PrintWarning(fmt.Sprintf("Could not update PATH: %v", err))
-		ui.PrintInfo("You may need to restart your terminal after installation")
+		return fmt.Errorf("homebrew installation completed but could not find brew binary: %w", err)
+	}
+
+	// Verify that brew is actually working
+	if !d.commandExists("brew") {
+		return fmt.Errorf("homebrew installation completed but brew command not found in PATH")
+	}
+
+	// Test brew with a simple command to ensure it's functional
+	testCmd := exec.Command("brew", "--version")
+	if err := testCmd.Run(); err != nil {
+		return fmt.Errorf("homebrew installed but not functioning correctly: %w", err)
 	}
 
 	ui.PrintSuccess("Homebrew installed successfully")
@@ -208,7 +218,7 @@ func (d *DarwinInstaller) InstallDependencies() error {
 		}
 
 		ui.PrintInfo("Installing uv...")
-		if err := d.runBrewInstall("uv"); err != nil {
+		if err := d.runBrewInstall("uv", false); err != nil {
 			errChan <- fmt.Errorf("failed to install uv: %w", err)
 			return
 		}
@@ -224,8 +234,8 @@ func (d *DarwinInstaller) InstallDependencies() error {
 			return
 		}
 
-		ui.PrintInfo("Installing segger-jlink...")
-		if err := d.runBrewInstall("segger-jlink"); err != nil {
+		ui.PrintInfo("Installing segger-jlink (this may take a few minutes)...")
+		if err := d.runBrewInstall("segger-jlink", true); err != nil {
 			errChan <- fmt.Errorf("failed to install segger-jlink: %w", err)
 			return
 		}
@@ -361,12 +371,14 @@ func (d *DarwinInstaller) setupBrewPath() error {
 }
 
 // runBrewInstall runs a brew install command
-func (d *DarwinInstaller) runBrewInstall(pkg string) error {
+func (d *DarwinInstaller) runBrewInstall(pkg string, showOutput bool) error {
 	cmd := exec.Command("brew", "install", pkg)
 
-	// Show output in debug mode, otherwise suppress it
-	if IsDebugMode() {
-		ui.PrintDebug(fmt.Sprintf("Running: brew install %s", pkg))
+	// Show output if requested or in debug mode
+	if showOutput || IsDebugMode() {
+		if IsDebugMode() {
+			ui.PrintDebug(fmt.Sprintf("Running: brew install %s", pkg))
+		}
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
