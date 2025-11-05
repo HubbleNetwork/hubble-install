@@ -29,7 +29,7 @@ if [ -n "$1" ]; then
         echo "  • Exit and check that you pasted the complete command correctly"
         echo "  • Continue and enter your credentials manually"
         echo ""
-        read -p "Would you like to exit and try again? (Y/n): " -n 1 -r
+        read -p "Would you like to exit and try again? (Y/n): " -n 1 -r < /dev/tty
         echo ""
         if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
             echo "Please check your command and run the installer again."
