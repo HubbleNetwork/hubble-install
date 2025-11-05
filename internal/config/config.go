@@ -1,6 +1,7 @@
 package config
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -16,10 +17,28 @@ type Config struct {
 }
 
 // PromptForConfig prompts the user for all required configuration
-func PromptForConfig() (*Config, error) {
+// Returns the config and a boolean indicating if credentials were pre-configured
+func PromptForConfig() (*Config, bool, error) {
 	config := &Config{}
+	preConfigured := false
 
-	// Check environment variables first
+	// Check for base64 encoded credentials first (passed from install.sh)
+	if encodedCreds := os.Getenv("HUBBLE_CREDENTIALS"); encodedCreds != "" {
+		decoded, err := base64.StdEncoding.DecodeString(encodedCreds)
+		if err == nil {
+			parts := strings.SplitN(string(decoded), ":", 2)
+			if len(parts) == 2 {
+				config.OrgID = strings.TrimSpace(parts[0])
+				config.APIToken = strings.TrimSpace(parts[1])
+				if config.OrgID != "" && config.APIToken != "" {
+					preConfigured = true
+					return config, preConfigured, nil
+				}
+			}
+		}
+	}
+
+	// Check environment variables
 	envOrgID := os.Getenv("HUBBLE_ORG_ID")
 	envAPIToken := os.Getenv("HUBBLE_API_TOKEN")
 
@@ -27,8 +46,9 @@ func PromptForConfig() (*Config, error) {
 	if envOrgID != "" && envAPIToken != "" {
 		config.OrgID = envOrgID
 		config.APIToken = envAPIToken
+		preConfigured = true
 		ui.PrintSuccess("Credentials found in environment")
-		return config, nil
+		return config, preConfigured, nil
 	}
 
 	// Print info about where to find credentials
@@ -69,7 +89,7 @@ func PromptForConfig() (*Config, error) {
 
 	ui.PrintSuccess("Credentials configured")
 
-	return config, nil
+	return config, preConfigured, nil
 }
 
 // Validate checks if the configuration is valid
