@@ -56,12 +56,19 @@ func main() {
 
 	// Show what will happen
 	ui.PrintInfo("This installer will:")
-	fmt.Println("  • Check for required dependencies (uv, SEGGER J-Link)")
+	fmt.Println("  • Check for required dependencies:")
+	fmt.Println("    - uv, a lightweight Python package manager and virtual environment")
+	fmt.Println("    - SEGGER J-Link, the programming and debug software package required to")
+	fmt.Println("      communicate with supported developer kits over SWD (Serial Wire Debug)")
 	fmt.Println("  • Install any missing dependencies")
 	fmt.Println("  • Verify your developer board is connected")
 	fmt.Println("  • Let you select your developer board model")
 	fmt.Println("  • Configure your Hubble credentials")
-	fmt.Println("  • Flash your board and add it to your organization")
+	fmt.Println("  • Flash your board as a new device assigned to your organization")
+	fmt.Println()
+	ui.PrintWarning("Make sure that only one board is connected to your laptop for flashing.")
+	fmt.Println("  It must be connected using a data-capable cable. Look for status lights")
+	fmt.Println("  to confirm that the board is powered \"on\".")
 	fmt.Println()
 
 	// Prompt user to continue
@@ -199,11 +206,25 @@ func main() {
 	currentStep++
 	stepStart = time.Now()
 	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
-	cfg, err := config.PromptForConfig()
+
+	cfg, preConfigured, err := config.PromptForConfig()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Configuration failed: %v", err))
 		os.Exit(1)
 	}
+
+	// Show appropriate message based on whether credentials were pre-configured
+	if preConfigured {
+		fmt.Println()
+		ui.PrintSuccess("We've handled your setup details")
+		fmt.Println()
+		ui.PrintInfo("We've pre-filled your credentials for this command.")
+		fmt.Println()
+		ui.PrintInfo("In the future, you'll need to insert your Org ID and use an API token")
+		ui.PrintInfo("you've generated to provision new devices.")
+		fmt.Println()
+	}
+
 	if debugFlag {
 		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
