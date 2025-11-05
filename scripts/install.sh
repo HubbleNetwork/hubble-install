@@ -1,8 +1,47 @@
 #!/bin/bash
 # Hubble Network Installer Download and Run Script
-# Usage: curl -fsSL https://hubble.com/install.sh | bash
+# Usage: 
+#   With credentials: curl -fsSL https://hubble.com/install.sh | bash -s <base64-credentials>
+#   Without credentials: curl -fsSL https://hubble.com/install.sh | bash
 
 set -e
+
+# Accept credentials as first argument (base64 encoded org_id:api_key)
+if [ -n "$1" ]; then
+    VALIDATION_FAILED=0
+    
+    # Validate base64 format
+    if ! echo "$1" | base64 -d > /dev/null 2>&1; then
+        VALIDATION_FAILED=1
+    else
+        # Decode and validate format (should contain a colon)
+        DECODED=$(echo "$1" | base64 -d 2>/dev/null)
+        if ! echo "$DECODED" | grep -q ':'; then
+            VALIDATION_FAILED=1
+        fi
+    fi
+    
+    if [ $VALIDATION_FAILED -eq 1 ]; then
+        echo ""
+        echo "⚠️  We were unable to validate your credentials."
+        echo ""
+        echo "You can either:"
+        echo "  • Exit and check that you pasted the complete command correctly"
+        echo "  • Continue and enter your credentials manually"
+        echo ""
+        read -p "Would you like to exit and try again? (Y/n): " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+            echo "Please check your command and run the installer again."
+            exit 1
+        fi
+        echo "Continuing - you'll be prompted for credentials..."
+        echo ""
+    else
+        export HUBBLE_CREDENTIALS="$1"
+        echo "✓ Credentials provided"
+    fi
+fi
 
 INSTALL_URL="https://hubble-install.s3.amazonaws.com"
 BINARY_NAME="hubble-install"
