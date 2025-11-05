@@ -22,7 +22,7 @@ var (
 
 // PrintBanner prints the welcome banner
 func PrintBanner() {
-	cyan.Println(`
+	cyan.Print(`
 ╔═══════════════════════════════════════════════════════════╗
 ║      Welcome to Hubble Network! Let's get you setup.      ║
 ╚═══════════════════════════════════════════════════════════╝
@@ -192,8 +192,8 @@ func PromptChoice(prompt string, options []string) int {
 }
 
 // PrintCompletionBanner prints the success completion banner
-func PrintCompletionBanner(duration time.Duration, orgID, apiToken string, debugMode bool) {
-	green.Println(`
+func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName string, debugMode bool) {
+	green.Print(`
 ╔═══════════════════════════════════════════════════════════╗
 ║     ✓ Installation Complete!                              ║
 ╚═══════════════════════════════════════════════════════════╝
@@ -205,11 +205,21 @@ func PrintCompletionBanner(duration time.Duration, orgID, apiToken string, debug
 
 	// Main message
 	fmt.Println()
-	green.Println("🎉 You're all set!")
+	green.Println("✓  What's next")
 	fmt.Println()
-	cyan.Print("Return to ")
-	bold.Print("dash.hubble.com")
-	cyan.Println(" for further instructions!")
+	fmt.Printf("  • Your device \"%s\" is now broadcasting on the Hubble Terrestrial Network\n", deviceName)
+	fmt.Println()
+	fmt.Println("  • Download the Hubble Connect mobile app to scan for device packets")
+	fmt.Println()
+	cyan.Println("To scan for your device:")
+	fmt.Println()
+	fmt.Println("  Log into Hubble Connect using your organization username and password.")
+	fmt.Println()
+	fmt.Println("  Your smart phone is now scanning for your device's packets.")
+	fmt.Println()
+	fmt.Println("╔═══════════════════════════════════════════════════════════╗")
+	fmt.Println("║ Return to dash.hubble.com to view device detections!     ║")
+	fmt.Println("╚═══════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
 	// Instructions for flashing more devices

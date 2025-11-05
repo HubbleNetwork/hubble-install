@@ -266,7 +266,8 @@ func main() {
 	currentStep++
 	stepStart = time.Now()
 	ui.PrintStep("Flashing board", currentStep, totalSteps)
-	if err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board); err != nil {
+	deviceName, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board)
+	if err != nil {
 		ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
 		os.Exit(1)
 	}
@@ -285,7 +286,7 @@ func main() {
 	duration := time.Since(startTime)
 
 	// Print completion banner
-	ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, debugFlag)
+	ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, deviceName, debugFlag)
 
 	// Success!
 	os.Exit(0)

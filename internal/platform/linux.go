@@ -264,14 +264,14 @@ func (l *LinuxInstaller) CheckJLinkProbe() bool {
 }
 
 // FlashBoard flashes the specified board using uvx
-func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) error {
+func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (string, error) {
 	ui.PrintInfo(fmt.Sprintf("Flashing board: %s", board))
 	ui.PrintInfo("This may take 10-15 seconds...")
 
 	// Find the uv binary location
 	uvPath, err := exec.LookPath("uv")
 	if err != nil {
-		return fmt.Errorf("uv not found in PATH: %w", err)
+		return "", fmt.Errorf("uv not found in PATH: %w", err)
 	}
 
 	if IsDebugMode() {
@@ -287,30 +287,41 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) error {
 	// Create pipes for real-time output
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("failed to create stdout pipe: %w", err)
+		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return fmt.Errorf("failed to create stderr pipe: %w", err)
+		return "", fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start flash command: %w", err)
+		return "", fmt.Errorf("failed to start flash command: %w", err)
 	}
 
-	// Read and display output in real-time
-	go l.streamOutput(stdout)
+	// Channel to capture device name from output
+	deviceNameChan := make(chan string, 1)
+
+	// Read and display output in real-time, capturing device name
+	go l.streamOutputAndCaptureDeviceName(stdout, deviceNameChan)
 	go l.streamOutput(stderr)
 
 	// Wait for command to complete
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("flash command failed: %w", err)
+		return "", fmt.Errorf("flash command failed: %w", err)
+	}
+
+	// Get device name from channel (with default if not found)
+	var deviceName string
+	select {
+	case deviceName = <-deviceNameChan:
+	default:
+		deviceName = "your-device"
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Board %s flashed successfully!", board))
-	return nil
+	return deviceName, nil
 }
 
 // Verify verifies the installation was successful
@@ -434,5 +445,33 @@ func (l *LinuxInstaller) streamOutput(pipe io.ReadCloser) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
 		fmt.Println("  " + scanner.Text())
+	}
+}
+
+// streamOutputAndCaptureDeviceName streams output and captures the device name
+func (l *LinuxInstaller) streamOutputAndCaptureDeviceName(pipe io.ReadCloser, deviceNameChan chan<- string) {
+	scanner := bufio.NewScanner(pipe)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fmt.Println("  " + line)
+		
+		// Look for device name in the output
+		// Pattern: [INFO] No name supplied. Naming device "device-name"
+		if strings.Contains(line, "Naming device") {
+			// Find the quoted device name
+			startQuote := strings.Index(line, "\"")
+			if startQuote != -1 {
+				endQuote := strings.Index(line[startQuote+1:], "\"")
+				if endQuote != -1 {
+					deviceName := line[startQuote+1 : startQuote+1+endQuote]
+					if deviceName != "" {
+						select {
+						case deviceNameChan <- deviceName:
+						default:
+						}
+					}
+				}
+			}
+		}
 	}
 }

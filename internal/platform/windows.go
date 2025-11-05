@@ -46,8 +46,8 @@ func (w *WindowsInstaller) CheckJLinkProbe() bool {
 }
 
 // FlashBoard is not implemented for Windows yet
-func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board string) error {
-	return fmt.Errorf("windows platform not yet implemented")
+func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board string) (string, error) {
+	return "", fmt.Errorf("windows platform not yet implemented")
 }
 
 // Verify is not implemented for Windows yet

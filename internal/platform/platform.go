@@ -43,8 +43,8 @@ type Installer interface {
 	// CheckJLinkProbe checks if a J-Link probe is connected
 	CheckJLinkProbe() bool
 
-	// FlashBoard flashes the specified board with credentials
-	FlashBoard(orgID, apiToken, board string) error
+	// FlashBoard flashes the specified board with credentials and returns the device name
+	FlashBoard(orgID, apiToken, board string) (string, error)
 
 	// Verify verifies the installation was successful
 	Verify() error
