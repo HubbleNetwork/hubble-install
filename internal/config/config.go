@@ -18,14 +18,25 @@ type Config struct {
 
 // validateCredentials checks if the credentials have the expected format
 func validateCredentials(orgID, apiToken string) error {
-	// Validate Org ID format (should start with "org_")
-	if !strings.HasPrefix(orgID, "org_") {
-		return fmt.Errorf("org_id must start with 'org_', got: %s", orgID)
+	// Validate Org ID format (should be a UUID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+	// Example: "0f61efd0-24a7-4a2e-ae0f-8549d14ed901"
+	if len(orgID) != 36 {
+		return fmt.Errorf("org_id must be a UUID (36 characters), got %d characters", len(orgID))
 	}
 	
-	// Validate Org ID length (should be at least 5 characters: org_x)
-	if len(orgID) < 5 {
-		return fmt.Errorf("org_id is too short: %s", orgID)
+	// Check UUID format (8-4-4-4-12 with hyphens)
+	if orgID[8] != '-' || orgID[13] != '-' || orgID[18] != '-' || orgID[23] != '-' {
+		return fmt.Errorf("org_id must be a valid UUID format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)")
+	}
+	
+	// Validate that non-hyphen characters are hexadecimal
+	for i, c := range orgID {
+		if i == 8 || i == 13 || i == 18 || i == 23 {
+			continue // Skip hyphens
+		}
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return fmt.Errorf("org_id contains invalid character: %c (must be hex digits and hyphens)", c)
+		}
 	}
 	
 	// Validate API Token format (should be a hex string, typically 96 characters)
