@@ -276,10 +276,22 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (string, erro
 
 	if IsDebugMode() {
 		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
+		ui.PrintDebug(fmt.Sprintf("Org ID: %s", orgID))
+		if len(apiToken) > 11 {
+			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", apiToken[:7], apiToken[len(apiToken)-4:], len(apiToken)))
+		} else {
+			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
+		}
 	}
 
 	// Build the command - use 'uv tool run' instead of 'uvx'
 	cmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken)
+	
+	if IsDebugMode() {
+		// Show the command without the token for security
+		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
+		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
+	}
 
 	// Suppress Python warnings (SyntaxWarning, DeprecationWarning, etc.)
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
@@ -454,7 +466,7 @@ func (l *LinuxInstaller) streamOutputAndCaptureDeviceName(pipe io.ReadCloser, de
 	for scanner.Scan() {
 		line := scanner.Text()
 		fmt.Println("  " + line)
-		
+
 		// Look for device name in the output
 		// Pattern: [INFO] No name supplied. Naming device "device-name"
 		if strings.Contains(line, "Naming device") {

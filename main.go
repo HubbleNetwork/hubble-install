@@ -226,6 +226,12 @@ func main() {
 	}
 
 	if debugFlag {
+		ui.PrintDebug(fmt.Sprintf("Org ID: %s", cfg.OrgID))
+		if len(cfg.APIToken) > 11 {
+			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", cfg.APIToken[:7], cfg.APIToken[len(cfg.APIToken)-4:], len(cfg.APIToken)))
+		} else {
+			ui.PrintDebug(fmt.Sprintf("API Token: (length: %d)", len(cfg.APIToken)))
+		}
 		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
