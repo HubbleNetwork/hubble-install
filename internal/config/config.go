@@ -16,6 +16,42 @@ type Config struct {
 	Board    string
 }
 
+// validateCredentials checks if the credentials have the expected format
+func validateCredentials(orgID, apiToken string) error {
+	// Validate Org ID format (should start with "org_")
+	if !strings.HasPrefix(orgID, "org_") {
+		return fmt.Errorf("org_id must start with 'org_', got: %s", orgID)
+	}
+	
+	// Validate Org ID length (should be at least 5 characters: org_x)
+	if len(orgID) < 5 {
+		return fmt.Errorf("org_id is too short: %s", orgID)
+	}
+	
+	// Validate API Token format (should be a hex string, typically 96 characters)
+	// Example: "eb31d24113fadb77c6d89d65a8007c0eed3595e2255aaf1d7d81783900ab33be4332457a27861f67cc78fe930ea52941"
+	if len(apiToken) < 32 {
+		return fmt.Errorf("api_token is too short (expected ~96 hex characters, got %d)", len(apiToken))
+	}
+	
+	// Validate that it's a valid hex string
+	for _, c := range apiToken {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return fmt.Errorf("api_token must be a hexadecimal string (found invalid character: %c)", c)
+		}
+	}
+	
+	return nil
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 // PromptForConfig prompts the user for all required configuration
 // Returns the config and a boolean indicating if credentials were pre-configured
 func PromptForConfig() (*Config, bool, error) {
@@ -31,6 +67,10 @@ func PromptForConfig() (*Config, bool, error) {
 				config.OrgID = strings.TrimSpace(parts[0])
 				config.APIToken = strings.TrimSpace(parts[1])
 				if config.OrgID != "" && config.APIToken != "" {
+					// Validate credential format
+					if err := validateCredentials(config.OrgID, config.APIToken); err != nil {
+						return nil, false, fmt.Errorf("invalid credentials from HUBBLE_CREDENTIALS: %w", err)
+					}
 					preConfigured = true
 					return config, preConfigured, nil
 				}
@@ -46,6 +86,10 @@ func PromptForConfig() (*Config, bool, error) {
 	if envOrgID != "" && envAPIToken != "" {
 		config.OrgID = envOrgID
 		config.APIToken = envAPIToken
+		// Validate credential format
+		if err := validateCredentials(config.OrgID, config.APIToken); err != nil {
+			return nil, false, fmt.Errorf("invalid credentials from environment: %w", err)
+		}
 		preConfigured = true
 		ui.PrintSuccess("Credentials found in environment")
 		return config, preConfigured, nil
@@ -85,6 +129,11 @@ func PromptForConfig() (*Config, bool, error) {
 			}
 			ui.PrintWarning("API Token cannot be empty")
 		}
+	}
+
+	// Validate the final credentials
+	if err := validateCredentials(config.OrgID, config.APIToken); err != nil {
+		return nil, false, fmt.Errorf("invalid credentials: %w. Please check the format at https://dash.hubble.com/developer/api-tokens", err)
 	}
 
 	ui.PrintSuccess("Credentials configured")

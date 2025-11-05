@@ -286,7 +286,7 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (string, erro
 
 	// Build the command - use 'uv tool run' instead of 'uvx'
 	cmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken)
-	
+
 	if IsDebugMode() {
 		// Show the command without the token for security
 		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
