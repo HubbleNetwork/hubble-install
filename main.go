@@ -64,7 +64,7 @@ func main() {
 	fmt.Println("  • Verify your developer board is connected")
 	fmt.Println("  • Let you select your developer board model")
 	fmt.Println("  • Configure your Hubble credentials")
-	fmt.Println("  • Flash your board as a new device assigned to your organization")
+	fmt.Println("  • Flash your board with firmware as a new device assigned to your organization")
 	fmt.Println()
 	ui.PrintWarning("Make sure that only one board is connected to your laptop for flashing.")
 	fmt.Println("  It must be connected using a data-capable cable. Look for status lights")
@@ -291,8 +291,21 @@ func main() {
 	// Calculate total time
 	duration := time.Since(startTime)
 
-	// Print completion banner
-	ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, deviceName, debugFlag)
+	// Print completion banner and prompt for CLI installation
+	installCLI := ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, deviceName, debugFlag)
+
+	if installCLI {
+		// Install hubbledemo CLI
+		ui.PrintInfo("Installing hubbledemo CLI...")
+		if err := installer.InstallHubbleDemoCLI(); err != nil {
+			ui.PrintWarning(fmt.Sprintf("CLI installation failed: %v", err))
+			ui.PrintCLISkippedInstructions(cfg.OrgID)
+		} else {
+			ui.PrintCLIInstalledInstructions(cfg.OrgID)
+		}
+	} else {
+		ui.PrintCLISkippedInstructions(cfg.OrgID)
+	}
 
 	// Success!
 	os.Exit(0)

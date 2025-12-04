@@ -46,6 +46,9 @@ type Installer interface {
 	// FlashBoard flashes the specified board with credentials and returns the device name
 	FlashBoard(orgID, apiToken, board string) (string, error)
 
+	// InstallHubbleDemoCLI installs the hubbledemo CLI tool globally
+	InstallHubbleDemoCLI() error
+
 	// Verify verifies the installation was successful
 	Verify() error
 }

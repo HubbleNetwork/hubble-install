@@ -336,6 +336,24 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (string, erro
 	return deviceName, nil
 }
 
+// InstallHubbleDemoCLI installs the hubbledemo CLI tool globally using uv
+func (l *LinuxInstaller) InstallHubbleDemoCLI() error {
+	uvPath, err := exec.LookPath("uv")
+	if err != nil {
+		return fmt.Errorf("uv not found in PATH: %w", err)
+	}
+
+	cmd := exec.Command(uvPath, "tool", "install", "pyhubbledemo")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to install hubbledemo CLI: %w", err)
+	}
+
+	return nil
+}
+
 // Verify verifies the installation was successful
 func (l *LinuxInstaller) Verify() error {
 	// Check that all required tools are available

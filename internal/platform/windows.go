@@ -50,6 +50,11 @@ func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board string) (string, er
 	return "", fmt.Errorf("windows platform not yet implemented")
 }
 
+// InstallHubbleDemoCLI is not implemented for Windows yet
+func (w *WindowsInstaller) InstallHubbleDemoCLI() error {
+	return fmt.Errorf("windows platform not yet implemented")
+}
+
 // Verify is not implemented for Windows yet
 func (w *WindowsInstaller) Verify() error {
 	return fmt.Errorf("windows platform not yet implemented")

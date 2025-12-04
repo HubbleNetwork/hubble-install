@@ -23,12 +23,12 @@ func validateCredentials(orgID, apiToken string) error {
 	if len(orgID) != 36 {
 		return fmt.Errorf("org_id must be a UUID (36 characters), got %d characters", len(orgID))
 	}
-	
+
 	// Check UUID format (8-4-4-4-12 with hyphens)
 	if orgID[8] != '-' || orgID[13] != '-' || orgID[18] != '-' || orgID[23] != '-' {
 		return fmt.Errorf("org_id must be a valid UUID format (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)")
 	}
-	
+
 	// Validate that non-hyphen characters are hexadecimal
 	for i, c := range orgID {
 		if i == 8 || i == 13 || i == 18 || i == 23 {
@@ -38,20 +38,20 @@ func validateCredentials(orgID, apiToken string) error {
 			return fmt.Errorf("org_id contains invalid character: %c (must be hex digits and hyphens)", c)
 		}
 	}
-	
+
 	// Validate API Token format (should be a hex string, typically 96 characters)
 	// Example: "eb31d24113fadb77c6d89d65a8007c0eed3595e2255aaf1d7d81783900ab33be4332457a27861f67cc78fe930ea52941"
 	if len(apiToken) < 32 {
 		return fmt.Errorf("api_token is too short (expected ~96 hex characters, got %d)", len(apiToken))
 	}
-	
+
 	// Validate that it's a valid hex string
 	for _, c := range apiToken {
 		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
 			return fmt.Errorf("api_token must be a hexadecimal string (found invalid character: %c)", c)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -108,6 +108,10 @@ func PromptForConfig() (*Config, bool, error) {
 
 	// Print info about where to find credentials
 	ui.PrintInfo("Get your credentials at: https://dash.hubble.com/developer/api-tokens")
+	fmt.Println()
+	ui.PrintWarning("Important: Your API token must have these scopes:")
+	fmt.Println("  • read-organization-metadata")
+	fmt.Println("  • write-device")
 	fmt.Println()
 
 	// Prompt for Org ID (if not in environment)
