@@ -217,9 +217,9 @@ func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName s
 	fmt.Println()
 	fmt.Println("  Your smart phone is now scanning for your device's packets.")
 	fmt.Println()
-	fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Return to https://dash.hubble.com to view device detections!     ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+	fmt.Println("╔══════════════════════════════════════════════════════════════╗")
+	fmt.Println("║ Return to https://dash.hubble.com to view device detections! ║")
+	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
 	// Prompt to install hubbledemo CLI
