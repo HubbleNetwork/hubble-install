@@ -129,6 +129,9 @@ func main() {
 		currentStep++
 		stepStart = time.Now()
 		ui.PrintStep("Installing dependencies", currentStep, totalSteps)
+		ui.PrintInfo("If you need to install dependencies, you may be prompted for your computer's password.")
+		ui.PrintInfo("Installing dependencies can take several minutes.")
+		fmt.Println()
 
 		// Check if we need to install package manager first
 		needsPackageManager := false
