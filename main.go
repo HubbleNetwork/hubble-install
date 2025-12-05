@@ -64,6 +64,7 @@ func main() {
 	fmt.Println("  • Verify your developer board is connected")
 	fmt.Println("  • Let you select your developer board model")
 	fmt.Println("  • Configure your Hubble credentials")
+	fmt.Println("  • Register a new device to your Hubble organization via API request")
 	fmt.Println("  • Flash your board with firmware as a new device assigned to your organization")
 	fmt.Println()
 	ui.PrintWarning("Make sure that only one board is connected to your laptop for flashing.")

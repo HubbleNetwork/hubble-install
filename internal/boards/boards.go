@@ -25,23 +25,29 @@ var AvailableBoards = []Board{
 		Vendor:      "Nordic",
 	},
 	{
-		ID:          "nrf52dk",
-		Name:        "nRF52 DK",
-		Description: "Nordic Semiconductor nRF52 Development Kit",
-		Vendor:      "Nordic",
+		ID:          "ticc2340r5",
+		Name:        "TI CC2340R5",
+		Description: "Texas Instruments CC2340R5 Development Kit",
+		Vendor:      "Texas Instruments",
 	},
-	{
-		ID:          "xg22_ek4108a",
-		Name:        "xG22 EK4108A",
-		Description: "Silicon Labs xG22 Explorer Kit",
-		Vendor:      "Silicon Labs",
-	},
-	{
-		ID:          "xg24_ek2703a",
-		Name:        "xG24 EK2703A",
-		Description: "Silicon Labs xG24 Explorer Kit",
-		Vendor:      "Silicon Labs",
-	},
+	// {
+	// 	ID:          "nrf52dk",
+	// 	Name:        "nRF52 DK",
+	// 	Description: "Nordic Semiconductor nRF52 Development Kit",
+	// 	Vendor:      "Nordic",
+	// },
+	// {
+	// 	ID:          "xg22_ek4108a",
+	// 	Name:        "xG22 EK4108A",
+	// 	Description: "Silicon Labs xG22 Explorer Kit",
+	// 	Vendor:      "Silicon Labs",
+	// },
+	// {
+	// 	ID:          "xg24_ek2703a",
+	// 	Name:        "xG24 EK2703A",
+	// 	Description: "Silicon Labs xG24 Explorer Kit",
+	// 	Vendor:      "Silicon Labs",
+	// },
 }
 
 // GetBoard returns a board by its ID
@@ -58,8 +64,7 @@ func GetBoard(id string) (*Board, error) {
 func FormatBoardList() string {
 	result := ""
 	for i, board := range AvailableBoards {
-		result += fmt.Sprintf("%d. %s - %s (%s)\n", i+1, board.Name, board.Description, board.Vendor)
+		result += fmt.Sprintf("%d. %s - %s\n", i+1, board.Name, board.Description)
 	}
 	return result
 }
-
