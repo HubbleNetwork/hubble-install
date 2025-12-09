@@ -245,7 +245,6 @@ func PrintUniflashCompletionBanner(duration time.Duration, hexFilePath, boardNam
 	fmt.Println()
 	bold.Printf("    %s\n", hexFilePath)
 	fmt.Println()
-	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
 	fmt.Println("║ Return to https://dash.hubble.com to complete Uniflash steps!    ║")
 	fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
