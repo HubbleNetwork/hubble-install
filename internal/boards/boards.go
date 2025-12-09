@@ -25,23 +25,23 @@ var AvailableBoards = []Board{
 		Vendor:      "Nordic",
 	},
 	{
-		ID:          "nrf52dk",
-		Name:        "nRF52 DK",
-		Description: "Nordic Semiconductor nRF52 Development Kit",
-		Vendor:      "Nordic",
+		ID:          "ticc2340r5",
+		Name:        "TI CC2340R5",
+		Description: "Texas Instruments CC2340R5 Development Kit",
+		Vendor:      "Texas Instruments",
 	},
-	{
-		ID:          "xg22_ek4108a",
-		Name:        "xG22 EK4108A",
-		Description: "Silicon Labs xG22 Explorer Kit",
-		Vendor:      "Silicon Labs",
-	},
-	{
-		ID:          "xg24_ek2703a",
-		Name:        "xG24 EK2703A",
-		Description: "Silicon Labs xG24 Explorer Kit",
-		Vendor:      "Silicon Labs",
-	},
+	// {
+	// 	ID:          "xg22_ek4108a",
+	// 	Name:        "xG22 EK4108A",
+	// 	Description: "Silicon Labs xG22 Explorer Kit",
+	// 	Vendor:      "Silicon Labs",
+	// },
+	// {
+	// 	ID:          "xg24_ek2703a",
+	// 	Name:        "xG24 EK2703A",
+	// 	Description: "Silicon Labs xG24 Explorer Kit",
+	// 	Vendor:      "Silicon Labs",
+	// },
 }
 
 // GetBoard returns a board by its ID
@@ -62,4 +62,3 @@ func FormatBoardList() string {
 	}
 	return result
 }
-
