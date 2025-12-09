@@ -58,7 +58,7 @@ func GetBoard(id string) (*Board, error) {
 func FormatBoardList() string {
 	result := ""
 	for i, board := range AvailableBoards {
-		result += fmt.Sprintf("%d. %s - %s (%s)\n", i+1, board.Name, board.Description, board.Vendor)
+		result += fmt.Sprintf("%d. %s - %s\n", i+1, board.Name, board.Description)
 	}
 	return result
 }
