@@ -62,8 +62,8 @@ func (l *LinuxInstaller) ensureSudoAccess() error {
 	return nil
 }
 
-// CheckPrerequisites checks for missing dependencies
-func (l *LinuxInstaller) CheckPrerequisites() ([]MissingDependency, error) {
+// CheckPrerequisites checks for missing dependencies based on required deps
+func (l *LinuxInstaller) CheckPrerequisites(requiredDeps []string) ([]MissingDependency, error) {
 	var missing []MissingDependency
 
 	// Check if package manager is supported
@@ -71,37 +71,42 @@ func (l *LinuxInstaller) CheckPrerequisites() ([]MissingDependency, error) {
 		return nil, fmt.Errorf("unsupported Linux distribution - only apt, dnf, and yum are supported")
 	}
 
-	// Check for SEGGER J-Link FIRST (must be installed manually before proceeding)
-	if !l.commandExists("JLinkExe") {
-		fmt.Println("") // blank line for readability
-		ui.PrintError("SEGGER J-Link was not found")
-		ui.PrintInfo("Due to license requirements, it must be downloaded manually from:")
-		ui.PrintInfo("  https://www.segger.com/downloads/jlink/")
-		fmt.Println("") // blank line
-		ui.PrintInfo("After downloading, install with:")
+	// Check each required dependency
+	for _, dep := range requiredDeps {
+		switch dep {
+		case "uv":
+			if !l.commandExists("uv") {
+				missing = append(missing, MissingDependency{
+					Name:   "uv",
+					Status: "Not installed",
+				})
+			}
+		case "segger-jlink":
+			// Check for SEGGER J-Link (must be installed manually on Linux)
+			if !l.commandExists("JLinkExe") {
+				fmt.Println("") // blank line for readability
+				ui.PrintError("SEGGER J-Link was not found")
+				ui.PrintInfo("Due to license requirements, it must be downloaded manually from:")
+				ui.PrintInfo("  https://www.segger.com/downloads/jlink/")
+				fmt.Println("") // blank line
+				ui.PrintInfo("After downloading, install with:")
 
-		switch l.pkgManager {
-		case PackageManagerAPT:
-			ui.PrintInfo("  sudo dpkg -i JLink_Linux_*.deb")
-		case PackageManagerDNF:
-			ui.PrintInfo("  sudo dnf install JLink_Linux_*.rpm")
-		case PackageManagerYUM:
-			ui.PrintInfo("  sudo yum install JLink_Linux_*.rpm")
-		default:
-			ui.PrintInfo("  tar xzf JLink_Linux_*.tgz -C ~/opt/SEGGER")
-			ui.PrintInfo("  sudo cp ~/opt/SEGGER/JLink*/99-jlink.rules /etc/udev/rules.d/")
+				switch l.pkgManager {
+				case PackageManagerAPT:
+					ui.PrintInfo("  sudo dpkg -i JLink_Linux_*.deb")
+				case PackageManagerDNF:
+					ui.PrintInfo("  sudo dnf install JLink_Linux_*.rpm")
+				case PackageManagerYUM:
+					ui.PrintInfo("  sudo yum install JLink_Linux_*.rpm")
+				default:
+					ui.PrintInfo("  tar xzf JLink_Linux_*.tgz -C ~/opt/SEGGER")
+					ui.PrintInfo("  sudo cp ~/opt/SEGGER/JLink*/99-jlink.rules /etc/udev/rules.d/")
+				}
+
+				fmt.Println("") // blank line
+				return nil, fmt.Errorf("J-Link must be installed before running this installer")
+			}
 		}
-
-		fmt.Println("") // blank line
-		return nil, fmt.Errorf("J-Link must be installed before running this installer")
-	}
-
-	// Check for uv (can be auto-installed)
-	if !l.commandExists("uv") {
-		missing = append(missing, MissingDependency{
-			Name:   "uv",
-			Status: "Not installed",
-		})
 	}
 
 	return missing, nil
@@ -114,20 +119,29 @@ func (l *LinuxInstaller) InstallPackageManager() error {
 	return nil
 }
 
-// InstallDependencies installs uv (J-Link already verified in CheckPrerequisites)
-func (l *LinuxInstaller) InstallDependencies() error {
-	// Install uv (must be installed via astral.sh installer)
-	if !l.commandExists("uv") {
-		ui.PrintInfo("Installing uv from astral.sh...")
-		if err := l.installUV(); err != nil {
-			return fmt.Errorf("failed to install uv: %w", err)
+// InstallDependencies installs the specified dependencies
+func (l *LinuxInstaller) InstallDependencies(deps []string) error {
+	for _, dep := range deps {
+		switch dep {
+		case "uv":
+			// Install uv (must be installed via astral.sh installer)
+			if !l.commandExists("uv") {
+				ui.PrintInfo("Installing uv from astral.sh...")
+				if err := l.installUV(); err != nil {
+					return fmt.Errorf("failed to install uv: %w", err)
+				}
+				ui.PrintSuccess("uv installed successfully")
+			} else {
+				ui.PrintSuccess("uv already installed")
+			}
+		case "segger-jlink":
+			// J-Link must be installed manually on Linux - verified in CheckPrerequisites
+			if l.commandExists("JLinkExe") {
+				ui.PrintSuccess("segger-jlink already installed")
+			}
 		}
-		ui.PrintSuccess("uv installed successfully")
-	} else {
-		ui.PrintSuccess("uv already installed")
 	}
 
-	// J-Link was already verified in CheckPrerequisites, so we're good to go
 	return nil
 }
 
@@ -263,15 +277,15 @@ func (l *LinuxInstaller) CheckJLinkProbe() bool {
 	return strings.Contains(outputStr, "segger")
 }
 
-// FlashBoard flashes the specified board using uvx
-func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (string, error) {
+// FlashBoard flashes the specified board using uvx (for J-Link boards)
+func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult, error) {
 	ui.PrintInfo(fmt.Sprintf("Flashing board: %s", board))
 	ui.PrintInfo("This may take 10-15 seconds...")
 
 	// Find the uv binary location
 	uvPath, err := exec.LookPath("uv")
 	if err != nil {
-		return "", fmt.Errorf("uv not found in PATH: %w", err)
+		return nil, fmt.Errorf("uv not found in PATH: %w", err)
 	}
 
 	if IsDebugMode() {
@@ -299,17 +313,17 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (string, erro
 	// Create pipes for real-time output
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return "", fmt.Errorf("failed to create stderr pipe: %w", err)
+		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start flash command: %w", err)
+		return nil, fmt.Errorf("failed to start flash command: %w", err)
 	}
 
 	// Channel to capture device name from output
@@ -321,7 +335,7 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (string, erro
 
 	// Wait for command to complete
 	if err := cmd.Wait(); err != nil {
-		return "", fmt.Errorf("flash command failed: %w", err)
+		return nil, fmt.Errorf("flash command failed: %w", err)
 	}
 
 	// Get device name from channel (with default if not found)
@@ -333,17 +347,80 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (string, erro
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Board %s flashed successfully!", board))
-	return deviceName, nil
+	return &FlashResult{DeviceName: deviceName}, nil
 }
 
-// Verify verifies the installation was successful
-func (l *LinuxInstaller) Verify() error {
-	// Check that all required tools are available
-	tools := []string{"uv", "JLinkExe"}
+// GenerateHexFile generates a hex file for Uniflash boards (TI)
+func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error) {
+	ui.PrintInfo(fmt.Sprintf("Generating hex file for board: %s", board))
+	ui.PrintInfo("This may take a few seconds...")
 
-	for _, tool := range tools {
-		if !l.commandExists(tool) {
-			return fmt.Errorf("verification failed: %s not found", tool)
+	// Find the uv binary location
+	uvPath, err := exec.LookPath("uv")
+	if err != nil {
+		return nil, fmt.Errorf("uv not found in PATH: %w", err)
+	}
+
+	if IsDebugMode() {
+		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
+	}
+
+	// Build the command
+	cmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken)
+
+	if IsDebugMode() {
+		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
+		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
+	}
+
+	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start command: %w", err)
+	}
+
+	hexPathChan := make(chan string, 1)
+	go l.streamOutputAndCaptureHexPath(stdout, hexPathChan)
+	go l.streamOutput(stderr)
+
+	if err := cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("command failed: %w", err)
+	}
+
+	var hexPath string
+	select {
+	case hexPath = <-hexPathChan:
+	default:
+		homeDir := os.Getenv("HOME")
+		hexPath = filepath.Join(homeDir, ".hubble", board+".hex")
+	}
+
+	ui.PrintSuccess("Hex file generated successfully!")
+	return &FlashResult{HexFilePath: hexPath}, nil
+}
+
+// Verify verifies the installation was successful for the given dependencies
+func (l *LinuxInstaller) Verify(deps []string) error {
+	for _, dep := range deps {
+		switch dep {
+		case "uv":
+			if !l.commandExists("uv") {
+				return fmt.Errorf("verification failed: uv not found")
+			}
+		case "segger-jlink":
+			if !l.commandExists("JLinkExe") {
+				return fmt.Errorf("verification failed: JLinkExe not found")
+			}
 		}
 	}
 
@@ -482,6 +559,32 @@ func (l *LinuxInstaller) streamOutputAndCaptureDeviceName(pipe io.ReadCloser, de
 						default:
 						}
 					}
+				}
+			}
+		}
+	}
+}
+
+// streamOutputAndCaptureHexPath streams output and captures the hex file path
+func (l *LinuxInstaller) streamOutputAndCaptureHexPath(pipe io.ReadCloser, hexPathChan chan<- string) {
+	scanner := bufio.NewScanner(pipe)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fmt.Println("  " + line)
+
+		// Look for hex file path in the output
+		if strings.Contains(line, ".hex") {
+			words := strings.Fields(line)
+			for _, word := range words {
+				if strings.HasSuffix(word, ".hex") {
+					hexPath := strings.Trim(word, "\"'.,;:")
+					if hexPath != "" {
+						select {
+						case hexPathChan <- hexPath:
+						default:
+						}
+					}
+					break
 				}
 			}
 		}

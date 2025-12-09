@@ -217,39 +217,37 @@ func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName s
 	fmt.Println()
 	fmt.Println("  Your smart phone is now scanning for your device's packets.")
 	fmt.Println()
-	fmt.Println("╔═══════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Return to dash.hubble.com to view device detections!     ║")
-	fmt.Println("╚═══════════════════════════════════════════════════════════╝")
+	fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
+	fmt.Println("║ Return to https://dash.hubble.com to view device detections!     ║")
+	fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
-	// Instructions for flashing more devices
-	cyan.Println("To flash more devices:")
-	fmt.Println()
+	yellow.Println("Need help? Visit https://hubble.com/support/")
+}
 
-	// Recommend installing globally for shorter commands
-	fmt.Print("  1. Install hubbledemo CLI (one-time setup):\n     ")
-	bold.Println("uv tool install pyhubbledemo")
-	fmt.Println()
-	fmt.Print("     Then set credentials as environment variables:\n")
-	fmt.Printf("     ")
-	bold.Printf("export HUBBLE_ORG_ID=%s\n", orgID)
-	fmt.Printf("     ")
-	bold.Println("export HUBBLE_API_TOKEN=<your_token>")
-	fmt.Println()
-	fmt.Print("     And use the shorter command:\n     ")
-	bold.Println("hubbledemo flash <board>")
-	fmt.Println()
+// PrintUniflashCompletionBanner prints the completion banner for TI Uniflash boards
+func PrintUniflashCompletionBanner(duration time.Duration, hexFilePath, boardName string, debugMode bool) {
+	green.Print(`
+╔═══════════════════════════════════════════════════════════╗
+║     ✓ Hex File Generated!                                 ║
+╚═══════════════════════════════════════════════════════════╝
+`)
 
-	// Option 2: Use full command without installation
-	fmt.Print("  2. Or use the full command without installation:\n     ")
-	bold.Printf("uv tool run --from pyhubbledemo hubbledemo flash <board> -o %s -t <your_token>\n", orgID)
-	fmt.Println()
+	if debugMode {
+		cyan.Printf("⏱️  Total time: %.1f seconds\n\n", duration.Seconds())
+	}
 
-	fmt.Print("  3. View available commands:\n     ")
-	bold.Println("hubbledemo --help")
-	fmt.Print("     (or ")
-	fmt.Print("uv tool run --from pyhubbledemo hubbledemo --help")
-	fmt.Println(" if not installed)")
+	// Main message
+	fmt.Println()
+	green.Println("✓  What's next")
+	fmt.Println()
+	fmt.Printf("  Your hex file for the %s has been generated:\n", boardName)
+	fmt.Println()
+	bold.Printf("    %s\n", hexFilePath)
+	fmt.Println()
+	fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
+	fmt.Println("║ Return to https://dash.hubble.com to complete Uniflash steps!    ║")
+	fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
 	fmt.Println()
 
 	yellow.Println("Need help? Visit https://hubble.com/support/")
