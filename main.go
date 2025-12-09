@@ -239,16 +239,30 @@ func main() {
 	currentStep++
 	stepStart = time.Now()
 	ui.PrintStep("Selecting developer board", currentStep, totalSteps)
-	boardOptions := make([]string, len(boards.AvailableBoards))
-	for i, board := range boards.AvailableBoards {
-		boardOptions[i] = fmt.Sprintf("%s - %s (%s)", board.Name, board.Description, board.Vendor)
+
+	var selectedBoard boards.Board
+	if cfg.Board != "" {
+		// Board was pre-configured via credentials, skip selection
+		board, err := boards.GetBoard(cfg.Board)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("Invalid pre-configured board: %v", err))
+			os.Exit(1)
+		}
+		selectedBoard = *board
+		ui.PrintSuccess(fmt.Sprintf("Using pre-configured board: %s", selectedBoard.Name))
+	} else {
+		// Prompt user to select a board
+		boardOptions := make([]string, len(boards.AvailableBoards))
+		for i, board := range boards.AvailableBoards {
+			boardOptions[i] = fmt.Sprintf("%s - %s (%s)", board.Name, board.Description, board.Vendor)
+		}
+
+		selectedIndex := ui.PromptChoice("Available developer boards:", boardOptions)
+		selectedBoard = boards.AvailableBoards[selectedIndex]
+		cfg.Board = selectedBoard.ID
+
+		ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
 	}
-
-	selectedIndex := ui.PromptChoice("Available developer boards:", boardOptions)
-	selectedBoard := boards.AvailableBoards[selectedIndex]
-	cfg.Board = selectedBoard.ID
-
-	ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
 	if debugFlag {
 		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
