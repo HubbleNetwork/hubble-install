@@ -245,13 +245,6 @@ func PrintUniflashCompletionBanner(duration time.Duration, hexFilePath, boardNam
 	fmt.Println()
 	bold.Printf("    %s\n", hexFilePath)
 	fmt.Println()
-
-	cyan.Println("To complete the flashing process:")
-	fmt.Println()
-	fmt.Println("  1. Open TI Uniflash on your computer")
-	fmt.Println("  2. Connect your " + boardName + " via USB")
-	fmt.Println("  3. Load the hex file shown above")
-	fmt.Println("  4. Click 'Load Image' to flash your device")
 	fmt.Println()
 	fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
 	fmt.Println("║ Return to https://dash.hubble.com to complete Uniflash steps!    ║")
