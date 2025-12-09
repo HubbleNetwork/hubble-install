@@ -47,7 +47,7 @@ var AvailableBoards = []Board{
 		FlashMethod: FlashMethodJLink,
 	},
 	{
-		ID:          "ticc2340r5",
+		ID:          "lp_em_cc2340r5",
 		Name:        "TI CC2340R5",
 		Description: "Texas Instruments CC2340R5 LaunchPad",
 		Vendor:      "Texas Instruments",
