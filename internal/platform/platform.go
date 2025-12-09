@@ -23,19 +23,25 @@ type MissingDependency struct {
 	Status string
 }
 
+// FlashResult contains the result of a flash operation
+type FlashResult struct {
+	DeviceName string // Device name (for J-Link flash)
+	HexFilePath string // Path to generated hex file (for Uniflash)
+}
+
 // Installer defines the interface for platform-specific installation
 type Installer interface {
 	// Name returns the platform name
 	Name() string
 
-	// CheckPrerequisites checks for missing dependencies
-	CheckPrerequisites() ([]MissingDependency, error)
+	// CheckPrerequisites checks for missing dependencies based on required deps
+	CheckPrerequisites(requiredDeps []string) ([]MissingDependency, error)
 
 	// InstallPackageManager installs the package manager (e.g., Homebrew)
 	InstallPackageManager() error
 
-	// InstallDependencies installs required dependencies (uv, segger-jlink)
-	InstallDependencies() error
+	// InstallDependencies installs the specified dependencies
+	InstallDependencies(deps []string) error
 
 	// CleanDependencies removes uv and segger-jlink and clears Homebrew cache
 	CleanDependencies() error
@@ -43,11 +49,14 @@ type Installer interface {
 	// CheckJLinkProbe checks if a J-Link probe is connected
 	CheckJLinkProbe() bool
 
-	// FlashBoard flashes the specified board with credentials and returns the device name
-	FlashBoard(orgID, apiToken, board string) (string, error)
+	// FlashBoard flashes the specified board with credentials and returns the result
+	FlashBoard(orgID, apiToken, board string) (*FlashResult, error)
 
-	// Verify verifies the installation was successful
-	Verify() error
+	// GenerateHexFile generates a hex file for Uniflash boards and returns the path
+	GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error)
+
+	// Verify verifies the installation was successful for the given dependencies
+	Verify(deps []string) error
 }
 
 // GetInstaller returns the appropriate installer for the current platform

@@ -255,6 +255,42 @@ func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName s
 	yellow.Println("Need help? Visit https://hubble.com/support/")
 }
 
+// PrintUniflashCompletionBanner prints the completion banner for TI Uniflash boards
+func PrintUniflashCompletionBanner(duration time.Duration, hexFilePath, boardName string, debugMode bool) {
+	green.Print(`
+╔═══════════════════════════════════════════════════════════╗
+║     ✓ Hex File Generated!                                 ║
+╚═══════════════════════════════════════════════════════════╝
+`)
+
+	if debugMode {
+		cyan.Printf("⏱️  Total time: %.1f seconds\n\n", duration.Seconds())
+	}
+
+	// Main message
+	fmt.Println()
+	green.Println("✓  What's next")
+	fmt.Println()
+	fmt.Printf("  Your hex file for the %s has been generated:\n", boardName)
+	fmt.Println()
+	bold.Printf("    %s\n", hexFilePath)
+	fmt.Println()
+
+	cyan.Println("To complete the flashing process:")
+	fmt.Println()
+	fmt.Println("  1. Open TI Uniflash on your computer")
+	fmt.Println("  2. Connect your " + boardName + " via USB")
+	fmt.Println("  3. Load the hex file shown above")
+	fmt.Println("  4. Click 'Load Image' to flash your device")
+	fmt.Println()
+	fmt.Println("╔═══════════════════════════════════════════════════════════╗")
+	fmt.Println("║ Return to dash.hubble.com to complete Uniflash steps!    ║")
+	fmt.Println("╚═══════════════════════════════════════════════════════════╝")
+	fmt.Println()
+
+	yellow.Println("Need help? Visit https://hubble.com/support/")
+}
+
 // Spinner represents a loading spinner
 type Spinner struct {
 	message string

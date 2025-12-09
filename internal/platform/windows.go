@@ -20,7 +20,7 @@ func (w *WindowsInstaller) Name() string {
 }
 
 // CheckPrerequisites checks for missing dependencies
-func (w *WindowsInstaller) CheckPrerequisites() ([]MissingDependency, error) {
+func (w *WindowsInstaller) CheckPrerequisites(requiredDeps []string) ([]MissingDependency, error) {
 	ui.PrintWarning("Windows support coming soon!")
 	return nil, fmt.Errorf("windows platform not yet implemented")
 }
@@ -31,7 +31,7 @@ func (w *WindowsInstaller) InstallPackageManager() error {
 }
 
 // InstallDependencies is not implemented for Windows yet
-func (w *WindowsInstaller) InstallDependencies() error {
+func (w *WindowsInstaller) InstallDependencies(deps []string) error {
 	return fmt.Errorf("windows platform not yet implemented")
 }
 
@@ -46,11 +46,16 @@ func (w *WindowsInstaller) CheckJLinkProbe() bool {
 }
 
 // FlashBoard is not implemented for Windows yet
-func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board string) (string, error) {
-	return "", fmt.Errorf("windows platform not yet implemented")
+func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult, error) {
+	return nil, fmt.Errorf("windows platform not yet implemented")
+}
+
+// GenerateHexFile is not implemented for Windows yet
+func (w *WindowsInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error) {
+	return nil, fmt.Errorf("windows platform not yet implemented")
 }
 
 // Verify is not implemented for Windows yet
-func (w *WindowsInstaller) Verify() error {
+func (w *WindowsInstaller) Verify(deps []string) error {
 	return fmt.Errorf("windows platform not yet implemented")
 }

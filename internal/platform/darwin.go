@@ -48,11 +48,11 @@ func (d *DarwinInstaller) ensureSudoAccess() error {
 	return nil
 }
 
-// CheckPrerequisites checks for missing dependencies
-func (d *DarwinInstaller) CheckPrerequisites() ([]MissingDependency, error) {
+// CheckPrerequisites checks for missing dependencies based on required deps
+func (d *DarwinInstaller) CheckPrerequisites(requiredDeps []string) ([]MissingDependency, error) {
 	var missing []MissingDependency
 
-	// Check for Homebrew
+	// Check for Homebrew (always required for installing other deps)
 	if !d.commandExists("brew") {
 		missing = append(missing, MissingDependency{
 			Name:   "Homebrew",
@@ -60,20 +60,24 @@ func (d *DarwinInstaller) CheckPrerequisites() ([]MissingDependency, error) {
 		})
 	}
 
-	// Check for uv
-	if !d.commandExists("uv") {
-		missing = append(missing, MissingDependency{
-			Name:   "uv",
-			Status: "Not installed",
-		})
-	}
-
-	// Check for JLink (from segger-jlink)
-	if !d.commandExists("JLinkExe") {
-		missing = append(missing, MissingDependency{
-			Name:   "segger-jlink",
-			Status: "Not installed",
-		})
+	// Check each required dependency
+	for _, dep := range requiredDeps {
+		switch dep {
+		case "uv":
+			if !d.commandExists("uv") {
+				missing = append(missing, MissingDependency{
+					Name:   "uv",
+					Status: "Not installed",
+				})
+			}
+		case "segger-jlink":
+			if !d.commandExists("JLinkExe") {
+				missing = append(missing, MissingDependency{
+					Name:   "segger-jlink",
+					Status: "Not installed",
+				})
+			}
+		}
 	}
 
 	return missing, nil
@@ -195,8 +199,8 @@ func (d *DarwinInstaller) CleanDependencies() error {
 	return nil
 }
 
-// InstallDependencies installs uv and segger-jlink
-func (d *DarwinInstaller) InstallDependencies() error {
+// InstallDependencies installs the specified dependencies
+func (d *DarwinInstaller) InstallDependencies(deps []string) error {
 	// First ensure Homebrew is installed
 	if !d.commandExists("brew") {
 		if err := d.InstallPackageManager(); err != nil {
@@ -204,45 +208,44 @@ func (d *DarwinInstaller) InstallDependencies() error {
 		}
 	}
 
-	// Install uv and segger-jlink in parallel for speed
+	// Install dependencies in parallel for speed
 	var wg sync.WaitGroup
-	errChan := make(chan error, 2)
+	errChan := make(chan error, len(deps))
 
-	// Install uv
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if d.commandExists("uv") {
-			ui.PrintSuccess("uv already installed")
-			return
-		}
+	for _, dep := range deps {
+		dep := dep // capture loop variable
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			switch dep {
+			case "uv":
+				if d.commandExists("uv") {
+					ui.PrintSuccess("uv already installed")
+					return
+				}
+				ui.PrintInfo("Installing uv...")
+				if err := d.runBrewInstall("uv", false); err != nil {
+					errChan <- fmt.Errorf("failed to install uv: %w", err)
+					return
+				}
+				ui.PrintSuccess("uv installed successfully")
 
-		ui.PrintInfo("Installing uv...")
-		if err := d.runBrewInstall("uv", false); err != nil {
-			errChan <- fmt.Errorf("failed to install uv: %w", err)
-			return
-		}
-		ui.PrintSuccess("uv installed successfully")
-	}()
+			case "segger-jlink":
+				if d.commandExists("JLinkExe") {
+					ui.PrintSuccess("segger-jlink already installed")
+					return
+				}
+				ui.PrintInfo("Installing segger-jlink (this may take a few minutes)...")
+				if err := d.runBrewInstall("segger-jlink", true); err != nil {
+					errChan <- fmt.Errorf("failed to install segger-jlink: %w", err)
+					return
+				}
+				ui.PrintSuccess("segger-jlink installed successfully")
+			}
+		}()
+	}
 
-	// Install segger-jlink
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if d.commandExists("JLinkExe") {
-			ui.PrintSuccess("segger-jlink already installed")
-			return
-		}
-
-		ui.PrintInfo("Installing segger-jlink (this may take a few minutes)...")
-		if err := d.runBrewInstall("segger-jlink", true); err != nil {
-			errChan <- fmt.Errorf("failed to install segger-jlink: %w", err)
-			return
-		}
-		ui.PrintSuccess("segger-jlink installed successfully")
-	}()
-
-	// Wait for both installations to complete
+	// Wait for all installations to complete
 	wg.Wait()
 	close(errChan)
 
@@ -269,15 +272,15 @@ func (d *DarwinInstaller) CheckJLinkProbe() bool {
 	return strings.Contains(outputStr, "segger")
 }
 
-// FlashBoard flashes the specified board using uvx
-func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board string) (string, error) {
+// FlashBoard flashes the specified board using uvx (for J-Link boards)
+func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult, error) {
 	ui.PrintInfo(fmt.Sprintf("Flashing board: %s", board))
 	ui.PrintInfo("This may take 10-15 seconds...")
 
 	// Find the uv binary location
 	uvPath, err := exec.LookPath("uv")
 	if err != nil {
-		return "", fmt.Errorf("uv not found in PATH: %w", err)
+		return nil, fmt.Errorf("uv not found in PATH: %w", err)
 	}
 
 	if IsDebugMode() {
@@ -305,17 +308,17 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board string) (string, err
 	// Create pipes for real-time output
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return "", fmt.Errorf("failed to create stdout pipe: %w", err)
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		return "", fmt.Errorf("failed to create stderr pipe: %w", err)
+		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
-		return "", fmt.Errorf("failed to start flash command: %w", err)
+		return nil, fmt.Errorf("failed to start flash command: %w", err)
 	}
 
 	// Channel to capture device name from output
@@ -327,7 +330,7 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board string) (string, err
 
 	// Wait for command to complete
 	if err := cmd.Wait(); err != nil {
-		return "", fmt.Errorf("flash command failed: %w", err)
+		return nil, fmt.Errorf("flash command failed: %w", err)
 	}
 
 	// Get device name from channel (with default if not found)
@@ -339,17 +342,98 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board string) (string, err
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Board %s flashed successfully!", board))
-	return deviceName, nil
+	return &FlashResult{DeviceName: deviceName}, nil
 }
 
-// Verify verifies the installation was successful
-func (d *DarwinInstaller) Verify() error {
-	// Check that all required tools are available
-	tools := []string{"brew", "uv", "JLinkExe"}
+// GenerateHexFile generates a hex file for Uniflash boards (TI)
+func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error) {
+	ui.PrintInfo(fmt.Sprintf("Generating hex file for board: %s", board))
+	ui.PrintInfo("This may take a few seconds...")
 
-	for _, tool := range tools {
-		if !d.commandExists(tool) {
-			return fmt.Errorf("verification failed: %s not found", tool)
+	// Find the uv binary location
+	uvPath, err := exec.LookPath("uv")
+	if err != nil {
+		return nil, fmt.Errorf("uv not found in PATH: %w", err)
+	}
+
+	if IsDebugMode() {
+		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
+		ui.PrintDebug(fmt.Sprintf("Org ID: %s", orgID))
+		if len(apiToken) > 11 {
+			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", apiToken[:7], apiToken[len(apiToken)-4:], len(apiToken)))
+		} else {
+			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
+		}
+	}
+
+	// Build the command - use 'uv tool run' to generate hex file
+	// hubbledemo flash lp_em_cc2340r5 -o ORG_ID -t KEY
+	cmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken)
+
+	if IsDebugMode() {
+		// Show the command without the token for security
+		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
+		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
+	}
+
+	// Suppress Python warnings
+	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
+
+	// Create pipes for real-time output
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
+	}
+
+	// Start the command
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start command: %w", err)
+	}
+
+	// Channel to capture hex file path from output
+	hexPathChan := make(chan string, 1)
+
+	// Read and display output in real-time, capturing hex file path
+	go d.streamOutputAndCaptureHexPath(stdout, hexPathChan)
+	go d.streamOutput(stderr)
+
+	// Wait for command to complete
+	if err := cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("command failed: %w", err)
+	}
+
+	// Get hex file path from channel
+	var hexPath string
+	select {
+	case hexPath = <-hexPathChan:
+	default:
+		// If we couldn't capture the path, try to find it in a default location
+		homeDir, _ := os.UserHomeDir()
+		hexPath = fmt.Sprintf("%s/.hubble/%s.hex", homeDir, board)
+	}
+
+	ui.PrintSuccess("Hex file generated successfully!")
+	return &FlashResult{HexFilePath: hexPath}, nil
+}
+
+// Verify verifies the installation was successful for the given dependencies
+func (d *DarwinInstaller) Verify(deps []string) error {
+	// Check that all required tools are available
+	for _, dep := range deps {
+		switch dep {
+		case "uv":
+			if !d.commandExists("uv") {
+				return fmt.Errorf("verification failed: uv not found")
+			}
+		case "segger-jlink":
+			if !d.commandExists("JLinkExe") {
+				return fmt.Errorf("verification failed: JLinkExe not found")
+			}
 		}
 	}
 
@@ -439,6 +523,35 @@ func (d *DarwinInstaller) streamOutputAndCaptureDeviceName(pipe io.ReadCloser, d
 						default:
 						}
 					}
+				}
+			}
+		}
+	}
+}
+
+// streamOutputAndCaptureHexPath streams output and captures the hex file path
+func (d *DarwinInstaller) streamOutputAndCaptureHexPath(pipe io.ReadCloser, hexPathChan chan<- string) {
+	scanner := bufio.NewScanner(pipe)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fmt.Println("  " + line)
+
+		// Look for hex file path in the output
+		// Common patterns: "Hex file written to: /path/to/file.hex" or similar
+		if strings.Contains(line, ".hex") {
+			// Try to extract a path that ends with .hex
+			words := strings.Fields(line)
+			for _, word := range words {
+				if strings.HasSuffix(word, ".hex") {
+					// Clean up any quotes or punctuation
+					hexPath := strings.Trim(word, "\"'.,;:")
+					if hexPath != "" {
+						select {
+						case hexPathChan <- hexPath:
+						default:
+						}
+					}
+					break
 				}
 			}
 		}

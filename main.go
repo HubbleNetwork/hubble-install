@@ -12,8 +12,6 @@ import (
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
 )
 
-const totalSteps = 6
-
 var (
 	cleanFlag bool
 	debugFlag bool
@@ -56,19 +54,10 @@ func main() {
 
 	// Show what will happen
 	ui.PrintInfo("This installer will:")
-	fmt.Println("  • Check for required dependencies:")
-	fmt.Println("    - uv, a lightweight Python package manager and virtual environment")
-	fmt.Println("    - SEGGER J-Link, the programming and debug software package required to")
-	fmt.Println("      communicate with supported developer kits over SWD (Serial Wire Debug)")
-	fmt.Println("  • Install any missing dependencies")
-	fmt.Println("  • Verify your developer board is connected")
 	fmt.Println("  • Let you select your developer board model")
 	fmt.Println("  • Configure your Hubble credentials")
-	fmt.Println("  • Flash your board as a new device assigned to your organization")
-	fmt.Println()
-	ui.PrintWarning("Make sure that only one board is connected to your laptop for flashing.")
-	fmt.Println("  It must be connected using a data-capable cable. Look for status lights")
-	fmt.Println("  to confirm that the board is powered \"on\".")
+	fmt.Println("  • Check for and install required dependencies")
+	fmt.Println("  • Flash your board or generate a hex file for your organization")
 	fmt.Println()
 
 	// Prompt user to continue
@@ -85,127 +74,19 @@ func main() {
 		ui.PrintDebug(fmt.Sprintf("Installation start time: %s", startTime.Format(time.RFC3339)))
 	}
 
-	// Track current step number dynamically
-	currentStep := 0
-
-	// Detect platform silently (already detected by install script)
+	// Detect platform
 	installer, err := platform.GetInstaller()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Platform detection failed: %v", err))
 		os.Exit(1)
 	}
 
-	// Step 1: Check prerequisites
-	currentStep++
+	// =========================================================================
+	// Step 1: Get credentials (may include pre-configured board)
+	// =========================================================================
+	currentStep := 1
 	stepStart := time.Now()
-	ui.PrintStep("Checking prerequisites", currentStep, totalSteps)
-	missing, err := installer.CheckPrerequisites()
-	if err != nil {
-		ui.PrintError(fmt.Sprintf("Prerequisites check failed: %v", err))
-		os.Exit(1)
-	}
-
-	if len(missing) > 0 {
-		ui.PrintWarning("Missing dependencies detected:")
-		for _, dep := range missing {
-			fmt.Printf("  • %s: %s\n", dep.Name, dep.Status)
-		}
-		fmt.Println()
-
-		if !ui.PromptYesNo("Would you like to install missing dependencies?", true) {
-			ui.PrintError("Cannot proceed without dependencies")
-			os.Exit(1)
-		}
-	} else {
-		ui.PrintSuccess("All prerequisites satisfied")
-	}
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-	}
-
-	// Step 3: Install dependencies (only if needed)
-	if len(missing) > 0 {
-		currentStep++
-		stepStart = time.Now()
-		ui.PrintStep("Installing dependencies", currentStep, totalSteps)
-
-		// Check if we need to install package manager first
-		needsPackageManager := false
-		for _, dep := range missing {
-			if dep.Name == "Homebrew" {
-				needsPackageManager = true
-				break
-			}
-		}
-
-		if needsPackageManager {
-			if err := installer.InstallPackageManager(); err != nil {
-				ui.PrintError(fmt.Sprintf("Package manager installation failed: %v", err))
-				os.Exit(1)
-			}
-		}
-
-		// Install remaining dependencies
-		if err := installer.InstallDependencies(); err != nil {
-			ui.PrintError(fmt.Sprintf("Dependency installation failed: %v", err))
-			os.Exit(1)
-		}
-
-		ui.PrintSuccess("All dependencies installed")
-		if debugFlag {
-			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-	}
-
-	// Step 4: Check J-Link probe
-	currentStep++
-	stepStart = time.Now()
-	ui.PrintStep("Checking for J-Link probe", currentStep, totalSteps)
-
-	// Retry loop for probe detection
-	probeDetected := false
-	for !probeDetected {
-		if installer.CheckJLinkProbe() {
-			ui.PrintSuccess("J-Link probe detected")
-			probeDetected = true
-		} else {
-			ui.PrintWarning("No J-Link probe detected")
-			ui.PrintInfo("Please ensure:")
-			ui.PrintInfo("  • Developer board is connected via USB")
-			ui.PrintInfo("  • Using a data cable (not charge-only)")
-			ui.PrintInfo("  • Board is powered on")
-			fmt.Println()
-
-			// Ask what to do
-			options := []string{
-				"Retry - Check for probe again",
-				"Continue anyway - Proceed without probe",
-				"Exit - Cancel installation",
-			}
-			choice := ui.PromptChoice("What would you like to do?", options)
-
-			switch choice {
-			case 0: // Retry
-				fmt.Println()
-				ui.PrintInfo("Checking again...")
-				continue
-			case 1: // Continue anyway
-				ui.PrintWarning("Continuing without probe detection")
-				probeDetected = true
-			case 2: // Exit
-				os.Exit(0)
-			}
-		}
-	}
-
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-	}
-
-	// Step 5: Get credentials
-	currentStep++
-	stepStart = time.Now()
-	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
+	ui.PrintStep("Configuring credentials", currentStep, 0) // 0 = don't show total yet
 
 	cfg, preConfigured, err := config.PromptForConfig()
 	if err != nil {
@@ -213,7 +94,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Show appropriate message based on whether credentials were pre-configured
 	if preConfigured {
 		fmt.Println()
 		ui.PrintSuccess("We've handled your setup details")
@@ -226,23 +106,19 @@ func main() {
 	}
 
 	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Org ID: %s", cfg.OrgID))
-		if len(cfg.APIToken) > 11 {
-			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", cfg.APIToken[:7], cfg.APIToken[len(cfg.APIToken)-4:], len(cfg.APIToken)))
-		} else {
-			ui.PrintDebug(fmt.Sprintf("API Token: (length: %d)", len(cfg.APIToken)))
-		}
 		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
-	// Step 6: Select board
+	// =========================================================================
+	// Step 2: Select board (if not pre-configured)
+	// =========================================================================
 	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Selecting developer board", currentStep, totalSteps)
+	ui.PrintStep("Selecting developer board", currentStep, 0)
 
 	var selectedBoard boards.Board
 	if cfg.Board != "" {
-		// Board was pre-configured via credentials, skip selection
+		// Board was pre-configured via credentials
 		board, err := boards.GetBoard(cfg.Board)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid pre-configured board: %v", err))
@@ -263,8 +139,138 @@ func main() {
 
 		ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
 	}
+
+	// Now we know the board, show board-specific info
+	fmt.Println()
+	if selectedBoard.RequiresJLink() {
+		ui.PrintInfo("This board uses SEGGER J-Link for direct flashing.")
+		ui.PrintWarning("Make sure your board is connected via USB with a data-capable cable.")
+	} else {
+		ui.PrintInfo("This board uses TI Uniflash. A hex file will be generated for you.")
+		ui.PrintInfo("You'll need Uniflash installed to complete the flashing process.")
+	}
+	fmt.Println()
+
+	if debugFlag {
+		ui.PrintDebug(fmt.Sprintf("Board: %s, FlashMethod: %s", selectedBoard.ID, selectedBoard.FlashMethod))
+		ui.PrintDebug(fmt.Sprintf("Dependencies: %v", selectedBoard.GetDependencies()))
+		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
+	}
+
+	// =========================================================================
+	// Step 3: Check prerequisites (based on selected board)
+	// =========================================================================
+	currentStep++
+	stepStart = time.Now()
+	ui.PrintStep("Checking prerequisites", currentStep, 0)
+
+	requiredDeps := selectedBoard.GetDependencies()
+	missing, err := installer.CheckPrerequisites(requiredDeps)
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Prerequisites check failed: %v", err))
+		os.Exit(1)
+	}
+
+	if len(missing) > 0 {
+		ui.PrintWarning("Missing dependencies detected:")
+		for _, dep := range missing {
+			fmt.Printf("  • %s: %s\n", dep.Name, dep.Status)
+		}
+		fmt.Println()
+
+		if !ui.PromptYesNo("Would you like to install missing dependencies?", true) {
+			ui.PrintError("Cannot proceed without dependencies")
+			os.Exit(1)
+		}
+	} else {
+		ui.PrintSuccess("All prerequisites satisfied")
+	}
+
 	if debugFlag {
 		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
+	}
+
+	// =========================================================================
+	// Step 4: Install dependencies (only if needed)
+	// =========================================================================
+	if len(missing) > 0 {
+		currentStep++
+		stepStart = time.Now()
+		ui.PrintStep("Installing dependencies", currentStep, 0)
+
+		// Check if we need to install package manager first
+		needsPackageManager := false
+		for _, dep := range missing {
+			if dep.Name == "Homebrew" {
+				needsPackageManager = true
+				break
+			}
+		}
+
+		if needsPackageManager {
+			if err := installer.InstallPackageManager(); err != nil {
+				ui.PrintError(fmt.Sprintf("Package manager installation failed: %v", err))
+				os.Exit(1)
+			}
+		}
+
+		// Install board-specific dependencies
+		if err := installer.InstallDependencies(requiredDeps); err != nil {
+			ui.PrintError(fmt.Sprintf("Dependency installation failed: %v", err))
+			os.Exit(1)
+		}
+
+		ui.PrintSuccess("All dependencies installed")
+		if debugFlag {
+			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
+		}
+	}
+
+	// =========================================================================
+	// Step 5: Check J-Link probe (only for J-Link boards)
+	// =========================================================================
+	if selectedBoard.RequiresJLink() {
+		currentStep++
+		stepStart = time.Now()
+		ui.PrintStep("Checking for J-Link probe", currentStep, 0)
+
+		probeDetected := false
+		for !probeDetected {
+			if installer.CheckJLinkProbe() {
+				ui.PrintSuccess("J-Link probe detected")
+				probeDetected = true
+			} else {
+				ui.PrintWarning("No J-Link probe detected")
+				ui.PrintInfo("Please ensure:")
+				ui.PrintInfo("  • Developer board is connected via USB")
+				ui.PrintInfo("  • Using a data cable (not charge-only)")
+				ui.PrintInfo("  • Board is powered on")
+				fmt.Println()
+
+				options := []string{
+					"Retry - Check for probe again",
+					"Continue anyway - Proceed without probe",
+					"Exit - Cancel installation",
+				}
+				choice := ui.PromptChoice("What would you like to do?", options)
+
+				switch choice {
+				case 0: // Retry
+					fmt.Println()
+					ui.PrintInfo("Checking again...")
+					continue
+				case 1: // Continue anyway
+					ui.PrintWarning("Continuing without probe detection")
+					probeDetected = true
+				case 2: // Exit
+					os.Exit(0)
+				}
+			}
+		}
+
+		if debugFlag {
+			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
+		}
 	}
 
 	// Validate configuration
@@ -273,41 +279,75 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Confirm before flashing
-	fmt.Println()
-	ui.PrintSuccess("All prerequisites installed!")
-	if !ui.PromptYesNo(fmt.Sprintf("Would you like to flash and add your %s to your Hubble Network organization?", selectedBoard.Name), true) {
-		ui.PrintWarning("Flashing skipped. You can flash later using:")
-		fmt.Printf("  uv tool run --from pyhubbledemo hubbledemo flash %s -o %s -t <your_token>\n", cfg.Board, cfg.OrgID)
-		os.Exit(0)
-	}
-
-	// Step 7: Flash the board
+	// =========================================================================
+	// Step 6: Flash board or generate hex file
+	// =========================================================================
 	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Flashing board", currentStep, totalSteps)
-	deviceName, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board)
-	if err != nil {
-		ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
-		os.Exit(1)
-	}
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-	}
 
-	// Verify installation
 	fmt.Println()
-	ui.PrintInfo("Verifying installation...")
-	if err := installer.Verify(); err != nil {
-		ui.PrintWarning(fmt.Sprintf("Verification warning: %v", err))
+	ui.PrintSuccess("All prerequisites installed!")
+
+	if selectedBoard.RequiresJLink() {
+		// J-Link path: Direct flash
+		if !ui.PromptYesNo(fmt.Sprintf("Would you like to flash your %s now?", selectedBoard.Name), true) {
+			ui.PrintWarning("Flashing skipped. You can flash later using:")
+			fmt.Printf("  uv tool run --from pyhubbledemo hubbledemo flash %s -o %s -t <your_token>\n", cfg.Board, cfg.OrgID)
+			os.Exit(0)
+		}
+
+		ui.PrintStep("Flashing board", currentStep, 0)
+		result, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
+			os.Exit(1)
+		}
+
+		if debugFlag {
+			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
+		}
+
+		// Verify installation
+		fmt.Println()
+		ui.PrintInfo("Verifying installation...")
+		if err := installer.Verify(requiredDeps); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Verification warning: %v", err))
+		}
+
+		// Print J-Link completion banner
+		duration := time.Since(startTime)
+		ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, result.DeviceName, debugFlag)
+
+	} else {
+		// Uniflash path: Generate hex file
+		if !ui.PromptYesNo(fmt.Sprintf("Would you like to generate the hex file for your %s now?", selectedBoard.Name), true) {
+			ui.PrintWarning("Hex generation skipped. You can generate later using:")
+			fmt.Printf("  uv tool run --from pyhubbledemo hubbledemo flash %s -o %s -t <your_token>\n", cfg.Board, cfg.OrgID)
+			os.Exit(0)
+		}
+
+		ui.PrintStep("Generating hex file", currentStep, 0)
+		result, err := installer.GenerateHexFile(cfg.OrgID, cfg.APIToken, cfg.Board)
+		if err != nil {
+			ui.PrintError(fmt.Sprintf("Hex file generation failed: %v", err))
+			os.Exit(1)
+		}
+
+		if debugFlag {
+			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
+		}
+
+		// Verify installation
+		fmt.Println()
+		ui.PrintInfo("Verifying installation...")
+		if err := installer.Verify(requiredDeps); err != nil {
+			ui.PrintWarning(fmt.Sprintf("Verification warning: %v", err))
+		}
+
+		// Print Uniflash completion banner
+		duration := time.Since(startTime)
+		ui.PrintUniflashCompletionBanner(duration, result.HexFilePath, selectedBoard.Name, debugFlag)
 	}
 
-	// Calculate total time
-	duration := time.Since(startTime)
-
-	// Print completion banner
-	ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, deviceName, debugFlag)
-
-	// Success!
 	os.Exit(0)
 }
