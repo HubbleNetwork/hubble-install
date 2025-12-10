@@ -296,29 +296,19 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult
 
 	// Suppress Python warnings (SyntaxWarning, DeprecationWarning, etc.)
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
+	cmd.Stderr = os.Stderr
 
-	// Create pipes for real-time output
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
-	}
-
-	// Start the command
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start flash command: %w", err)
 	}
 
-	// Channel to capture device name from output
 	deviceNameChan := make(chan string, 1)
-
-	// Read and display output in real-time, capturing device name
 	go l.streamOutputAndCaptureDeviceName(stdout, deviceNameChan)
-	go l.streamOutput(stderr)
 
 	// Wait for command to complete
 	if err := cmd.Wait(); err != nil {
@@ -361,26 +351,19 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashR
 	}
 
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
+	cmd.Stderr = os.Stderr
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
-	}
-
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	// Channel to capture hex file path from output
 	hexPathChan := make(chan string, 1)
-
 	go l.streamOutputAndCaptureHexPath(stdout, hexPathChan)
-	go l.streamOutput(stderr)
 
 	// Wait for command to complete
 	cmdErr := cmd.Wait()
@@ -399,7 +382,6 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashR
 		return nil, fmt.Errorf("hex file was not generated - check device connection")
 	}
 
-	ui.PrintSuccess("Hex file generated successfully!")
 	return &FlashResult{HexFilePath: hexPath}, nil
 }
 
@@ -502,14 +484,6 @@ func (l *LinuxInstaller) removeJLinkPackage() error {
 	}
 
 	return cmd.Run()
-}
-
-// streamOutput streams command output line by line
-func (l *LinuxInstaller) streamOutput(pipe io.ReadCloser) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		fmt.Println("  " + scanner.Text())
-	}
 }
 
 // streamOutputAndCaptureDeviceName streams output and captures the device name

@@ -291,29 +291,19 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResul
 
 	// Suppress Python warnings (SyntaxWarning, DeprecationWarning, etc.)
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
+	cmd.Stderr = os.Stderr
 
-	// Create pipes for real-time output
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
-	}
-
-	// Start the command
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start flash command: %w", err)
 	}
 
-	// Channel to capture device name from output
 	deviceNameChan := make(chan string, 1)
-
-	// Read and display output in real-time, capturing device name
 	go d.streamOutputAndCaptureDeviceName(stdout, deviceNameChan)
-	go d.streamOutput(stderr)
 
 	// Wait for command to complete
 	if err := cmd.Wait(); err != nil {
@@ -365,29 +355,19 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board string) (*Flash
 
 	// Suppress Python warnings
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
+	cmd.Stderr = os.Stderr
 
-	// Create pipes for real-time output
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
-	}
-
-	// Start the command
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
-	// Channel to capture hex file path from output
 	hexPathChan := make(chan string, 1)
-
-	// Read and display output in real-time, capturing hex file path
 	go d.streamOutputAndCaptureHexPath(stdout, hexPathChan)
-	go d.streamOutput(stderr)
 
 	// Wait for command to complete
 	cmdErr := cmd.Wait()
@@ -402,11 +382,9 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board string) (*Flash
 	select {
 	case hexPath = <-hexPathChan:
 	default:
-		// If we couldn't capture the path, it likely failed
 		return nil, fmt.Errorf("hex file was not generated")
 	}
 
-	ui.PrintSuccess("Hex file generated successfully!")
 	return &FlashResult{HexFilePath: hexPath}, nil
 }
 
@@ -463,13 +441,6 @@ func (d *DarwinInstaller) runBrewInstall(pkg string, showOutput bool) error {
 }
 
 // streamOutput streams command output line by line
-func (d *DarwinInstaller) streamOutput(pipe io.ReadCloser) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		fmt.Println("  " + scanner.Text())
-	}
-}
-
 // streamOutputAndCaptureDeviceName streams output and captures the device name
 func (d *DarwinInstaller) streamOutputAndCaptureDeviceName(pipe io.ReadCloser, deviceNameChan chan<- string) {
 	scanner := bufio.NewScanner(pipe)
@@ -498,7 +469,6 @@ func (d *DarwinInstaller) streamOutputAndCaptureDeviceName(pipe io.ReadCloser, d
 	}
 }
 
-// streamOutputAndCaptureHexPath streams output and captures the hex file path
 func (d *DarwinInstaller) streamOutputAndCaptureHexPath(pipe io.ReadCloser, hexPathChan chan<- string) {
 	scanner := bufio.NewScanner(pipe)
 	for scanner.Scan() {
