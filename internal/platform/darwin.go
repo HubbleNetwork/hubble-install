@@ -537,21 +537,20 @@ func (d *DarwinInstaller) streamOutputAndCaptureHexPath(pipe io.ReadCloser, hexP
 		fmt.Println("  " + line)
 
 		// Look for hex file path in the output
-		// Common patterns: "Hex file written to: /path/to/file.hex" or similar
+		// Pattern: Hex file written to "/path/to/file.hex"
 		if strings.Contains(line, ".hex") {
-			// Try to extract a path that ends with .hex
-			words := strings.Fields(line)
-			for _, word := range words {
-				if strings.HasSuffix(word, ".hex") {
-					// Clean up any quotes or punctuation
-					hexPath := strings.Trim(word, "\"'.,;:")
-					if hexPath != "" {
+			// Extract quoted path (like device name extraction)
+			startQuote := strings.Index(line, "\"")
+			if startQuote != -1 {
+				endQuote := strings.Index(line[startQuote+1:], "\"")
+				if endQuote != -1 {
+					hexPath := line[startQuote+1 : startQuote+1+endQuote]
+					if strings.HasSuffix(hexPath, ".hex") {
 						select {
 						case hexPathChan <- hexPath:
 						default:
 						}
 					}
-					break
 				}
 			}
 		}

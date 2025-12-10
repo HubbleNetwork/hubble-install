@@ -573,18 +573,20 @@ func (l *LinuxInstaller) streamOutputAndCaptureHexPath(pipe io.ReadCloser, hexPa
 		fmt.Println("  " + line)
 
 		// Look for hex file path in the output
+		// Pattern: Hex file written to "/path/to/file.hex"
 		if strings.Contains(line, ".hex") {
-			words := strings.Fields(line)
-			for _, word := range words {
-				if strings.HasSuffix(word, ".hex") {
-					hexPath := strings.Trim(word, "\"'.,;:")
-					if hexPath != "" {
+			// Extract quoted path
+			startQuote := strings.Index(line, "\"")
+			if startQuote != -1 {
+				endQuote := strings.Index(line[startQuote+1:], "\"")
+				if endQuote != -1 {
+					hexPath := line[startQuote+1 : startQuote+1+endQuote]
+					if strings.HasSuffix(hexPath, ".hex") {
 						select {
 						case hexPathChan <- hexPath:
 						default:
 						}
 					}
-					break
 				}
 			}
 		}
