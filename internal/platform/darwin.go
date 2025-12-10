@@ -1,11 +1,10 @@
 package platform
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -294,36 +293,17 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board, deviceName string) 
 		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
 	}
 
-	// Suppress Python warnings (SyntaxWarning, DeprecationWarning, etc.)
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
+	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start flash command: %w", err)
-	}
-
-	capturedNameChan := make(chan string, 1)
-	go d.streamOutputAndCaptureDeviceName(stdout, capturedNameChan)
-
-	if err := cmd.Wait(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("flash command failed: %w", err)
 	}
 
-	// Get device name from output, or use user-provided name, or default
-	var resultDeviceName string
-	select {
-	case resultDeviceName = <-capturedNameChan:
-	default:
-		if deviceName != "" {
-			resultDeviceName = deviceName
-		} else {
-			resultDeviceName = "your-device"
-		}
+	resultDeviceName := deviceName
+	if resultDeviceName == "" {
+		resultDeviceName = "your-device"
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Board %s flashed successfully!", board))
@@ -340,9 +320,27 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 		return nil, fmt.Errorf("uv not found in PATH: %w", err)
 	}
 
+	// Determine hex file path
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	}
+	hubbleDir := filepath.Join(homeDir, ".hubble")
+	if err := os.MkdirAll(hubbleDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create .hubble directory: %w", err)
+	}
+
+	// Use device name for filename if provided, otherwise use board name
+	filename := board + ".hex"
+	if deviceName != "" {
+		filename = deviceName + ".hex"
+	}
+	hexFilePath := filepath.Join(hubbleDir, filename)
+
 	if IsDebugMode() {
 		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
 		ui.PrintDebug(fmt.Sprintf("Org ID: %s", orgID))
+		ui.PrintDebug(fmt.Sprintf("Hex file path: %s", hexFilePath))
 		if len(apiToken) > 11 {
 			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", apiToken[:7], apiToken[len(apiToken)-4:], len(apiToken)))
 		} else {
@@ -350,54 +348,30 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 		}
 	}
 
-	// Build the command
-	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
+	// Build the command with -f for output file
+	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken, "-f", hexFilePath}
 	if deviceName != "" {
 		args = append(args, "-n", deviceName)
 	}
 	cmd := exec.Command(uvPath, args...)
 
 	if IsDebugMode() {
-		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
+		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED] -f %s", uvPath, board, orgID, hexFilePath)
 		if deviceName != "" {
 			cmdStr += fmt.Sprintf(" -n %s", deviceName)
 		}
 		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
 	}
 
-	// Suppress Python warnings
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
+	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("command failed: %w", err)
 	}
 
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("failed to start command: %w", err)
-	}
-
-	hexPathChan := make(chan string, 1)
-	go d.streamOutputAndCaptureHexPath(stdout, hexPathChan)
-
-	// Wait for command to complete
-	cmdErr := cmd.Wait()
-
-	// Check command exit code
-	if cmdErr != nil {
-		return nil, fmt.Errorf("command failed: %w", cmdErr)
-	}
-
-	// Get hex file path from channel
-	var hexPath string
-	select {
-	case hexPath = <-hexPathChan:
-	default:
-		return nil, fmt.Errorf("hex file was not generated")
-	}
-
-	return &FlashResult{HexFilePath: hexPath}, nil
+	return &FlashResult{HexFilePath: hexFilePath}, nil
 }
 
 // Helper functions
@@ -450,60 +424,4 @@ func (d *DarwinInstaller) runBrewInstall(pkg string, showOutput bool) error {
 	}
 
 	return cmd.Run()
-}
-
-// streamOutput streams command output line by line
-// streamOutputAndCaptureDeviceName streams output and captures the device name
-func (d *DarwinInstaller) streamOutputAndCaptureDeviceName(pipe io.ReadCloser, deviceNameChan chan<- string) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fmt.Println("  " + line)
-
-		// Look for device name in the output
-		// Pattern: [INFO] No name supplied. Naming device "device-name"
-		if strings.Contains(line, "Naming device") {
-			// Find the quoted device name
-			startQuote := strings.Index(line, "\"")
-			if startQuote != -1 {
-				endQuote := strings.Index(line[startQuote+1:], "\"")
-				if endQuote != -1 {
-					deviceName := line[startQuote+1 : startQuote+1+endQuote]
-					if deviceName != "" {
-						select {
-						case deviceNameChan <- deviceName:
-						default:
-						}
-					}
-				}
-			}
-		}
-	}
-}
-
-func (d *DarwinInstaller) streamOutputAndCaptureHexPath(pipe io.ReadCloser, hexPathChan chan<- string) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fmt.Println("  " + line)
-
-		// Look for hex file path in the output
-		// Pattern: Hex file written to "/path/to/file.hex"
-		if strings.Contains(line, ".hex") {
-			// Extract quoted path
-			startQuote := strings.Index(line, "\"")
-			if startQuote != -1 {
-				endQuote := strings.Index(line[startQuote+1:], "\"")
-				if endQuote != -1 {
-					hexPath := line[startQuote+1 : startQuote+1+endQuote]
-					if strings.HasSuffix(hexPath, ".hex") {
-						select {
-						case hexPathChan <- hexPath:
-						default:
-						}
-					}
-				}
-			}
-		}
-	}
 }
