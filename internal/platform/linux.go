@@ -265,11 +265,10 @@ func (l *LinuxInstaller) installUV() error {
 }
 
 // FlashBoard flashes the specified board using uvx (for J-Link boards)
-func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult, error) {
+func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board, deviceName string) (*FlashResult, error) {
 	ui.PrintInfo(fmt.Sprintf("Flashing board: %s", board))
 	ui.PrintInfo("This may take 10-15 seconds...")
 
-	// Find the uv binary location
 	uvPath, err := exec.LookPath("uv")
 	if err != nil {
 		return nil, fmt.Errorf("uv not found in PATH: %w", err)
@@ -285,12 +284,18 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult
 		}
 	}
 
-	// Build the command - use 'uv tool run' instead of 'uvx'
-	cmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken)
+	// Build the command
+	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
+	if deviceName != "" {
+		args = append(args, "-n", deviceName)
+	}
+	cmd := exec.Command(uvPath, args...)
 
 	if IsDebugMode() {
-		// Show the command without the token for security
 		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
+		if deviceName != "" {
+			cmdStr += fmt.Sprintf(" -n %s", deviceName)
+		}
 		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
 	}
 
@@ -307,32 +312,34 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult
 		return nil, fmt.Errorf("failed to start flash command: %w", err)
 	}
 
-	deviceNameChan := make(chan string, 1)
-	go l.streamOutputAndCaptureDeviceName(stdout, deviceNameChan)
+	capturedNameChan := make(chan string, 1)
+	go l.streamOutputAndCaptureDeviceName(stdout, capturedNameChan)
 
-	// Wait for command to complete
 	if err := cmd.Wait(); err != nil {
 		return nil, fmt.Errorf("flash command failed: %w", err)
 	}
 
-	// Get device name from channel (with default if not found)
-	var deviceName string
+	// Get device name from output, or use user-provided name, or default
+	var resultDeviceName string
 	select {
-	case deviceName = <-deviceNameChan:
+	case resultDeviceName = <-capturedNameChan:
 	default:
-		deviceName = "your-device"
+		if deviceName != "" {
+			resultDeviceName = deviceName
+		} else {
+			resultDeviceName = "your-device"
+		}
 	}
 
 	ui.PrintSuccess(fmt.Sprintf("Board %s flashed successfully!", board))
-	return &FlashResult{DeviceName: deviceName}, nil
+	return &FlashResult{DeviceName: resultDeviceName}, nil
 }
 
 // GenerateHexFile generates a hex file for Uniflash boards (TI)
-func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error) {
+func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board, deviceName string) (*FlashResult, error) {
 	ui.PrintInfo(fmt.Sprintf("Generating hex file for board: %s", board))
 	ui.PrintInfo("This may take a few seconds...")
 
-	// Find the uv binary location
 	uvPath, err := exec.LookPath("uv")
 	if err != nil {
 		return nil, fmt.Errorf("uv not found in PATH: %w", err)
@@ -343,10 +350,17 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashR
 	}
 
 	// Build the command
-	cmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken)
+	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
+	if deviceName != "" {
+		args = append(args, "-n", deviceName)
+	}
+	cmd := exec.Command(uvPath, args...)
 
 	if IsDebugMode() {
 		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
+		if deviceName != "" {
+			cmdStr += fmt.Sprintf(" -n %s", deviceName)
+		}
 		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
 	}
 

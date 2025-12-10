@@ -251,8 +251,11 @@ func main() {
 			os.Exit(0)
 		}
 
+		// Prompt for optional device name
+		deviceName := ui.PromptOptionalInput("What should the device name be?")
+
 		ui.PrintStep("Flashing board", currentStep, totalSteps)
-		result, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board)
+		result, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board, deviceName)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
 			os.Exit(1)
@@ -274,8 +277,11 @@ func main() {
 			os.Exit(0)
 		}
 
+		// Prompt for optional device name
+		deviceName := ui.PromptOptionalInput("What should the device name be?")
+
 		ui.PrintStep("Generating hex file", currentStep, totalSteps)
-		result, err := installer.GenerateHexFile(cfg.OrgID, cfg.APIToken, cfg.Board)
+		result, err := installer.GenerateHexFile(cfg.OrgID, cfg.APIToken, cfg.Board, deviceName)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Hex file generation failed: %v", err))
 			os.Exit(1)

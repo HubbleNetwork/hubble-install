@@ -41,11 +41,11 @@ func (w *WindowsInstaller) CleanDependencies() error {
 }
 
 // FlashBoard is not implemented for Windows yet
-func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult, error) {
+func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board, deviceName string) (*FlashResult, error) {
 	return nil, fmt.Errorf("windows platform not yet implemented")
 }
 
 // GenerateHexFile is not implemented for Windows yet
-func (w *WindowsInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error) {
+func (w *WindowsInstaller) GenerateHexFile(orgID, apiToken, board, deviceName string) (*FlashResult, error) {
 	return nil, fmt.Errorf("windows platform not yet implemented")
 }

@@ -47,10 +47,10 @@ type Installer interface {
 	CleanDependencies() error
 
 	// FlashBoard flashes the specified board with credentials and returns the result
-	FlashBoard(orgID, apiToken, board string) (*FlashResult, error)
+	FlashBoard(orgID, apiToken, board, deviceName string) (*FlashResult, error)
 
 	// GenerateHexFile generates a hex file for Uniflash boards and returns the path
-	GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error)
+	GenerateHexFile(orgID, apiToken, board, deviceName string) (*FlashResult, error)
 }
 
 // GetInstaller returns the appropriate installer for the current platform
