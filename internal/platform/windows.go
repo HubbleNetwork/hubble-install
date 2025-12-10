@@ -49,8 +49,3 @@ func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResu
 func (w *WindowsInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error) {
 	return nil, fmt.Errorf("windows platform not yet implemented")
 }
-
-// Verify is not implemented for Windows yet
-func (w *WindowsInstaller) Verify(deps []string) error {
-	return fmt.Errorf("windows platform not yet implemented")
-}

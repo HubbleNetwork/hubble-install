@@ -247,9 +247,6 @@ func main() {
 	currentStep++
 	stepStart = time.Now()
 
-	fmt.Println()
-	ui.PrintSuccess("All prerequisites installed!")
-
 	if selectedBoard.RequiresJLink() {
 		// J-Link path: Direct flash
 		if !ui.PromptYesNo(fmt.Sprintf("Would you like to flash your %s now?", selectedBoard.Name), true) {
@@ -267,13 +264,6 @@ func main() {
 
 		if debugFlag {
 			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-
-		// Verify installation
-		fmt.Println()
-		ui.PrintInfo("Verifying installation...")
-		if err := installer.Verify(requiredDeps); err != nil {
-			ui.PrintWarning(fmt.Sprintf("Verification warning: %v", err))
 		}
 
 		// Print J-Link completion banner
@@ -297,13 +287,6 @@ func main() {
 
 		if debugFlag {
 			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-
-		// Verify installation
-		fmt.Println()
-		ui.PrintInfo("Verifying installation...")
-		if err := installer.Verify(requiredDeps); err != nil {
-			ui.PrintWarning(fmt.Sprintf("Verification warning: %v", err))
 		}
 
 		// Print Uniflash completion banner

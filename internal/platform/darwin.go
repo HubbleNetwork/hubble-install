@@ -410,26 +410,6 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board string) (*Flash
 	return &FlashResult{HexFilePath: hexPath}, nil
 }
 
-// Verify verifies the installation was successful for the given dependencies
-func (d *DarwinInstaller) Verify(deps []string) error {
-	// Check that all required tools are available
-	for _, dep := range deps {
-		switch dep {
-		case "uv":
-			if !d.commandExists("uv") {
-				return fmt.Errorf("verification failed: uv not found")
-			}
-		case "segger-jlink":
-			if !d.commandExists("JLinkExe") {
-				return fmt.Errorf("verification failed: JLinkExe not found")
-			}
-		}
-	}
-
-	ui.PrintSuccess("Installation verified - all tools present")
-	return nil
-}
-
 // Helper functions
 
 // commandExists checks if a command is available in PATH

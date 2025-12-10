@@ -51,9 +51,6 @@ type Installer interface {
 
 	// GenerateHexFile generates a hex file for Uniflash boards and returns the path
 	GenerateHexFile(orgID, apiToken, board string) (*FlashResult, error)
-
-	// Verify verifies the installation was successful for the given dependencies
-	Verify(deps []string) error
 }
 
 // GetInstaller returns the appropriate installer for the current platform

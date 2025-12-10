@@ -403,25 +403,6 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashR
 	return &FlashResult{HexFilePath: hexPath}, nil
 }
 
-// Verify verifies the installation was successful for the given dependencies
-func (l *LinuxInstaller) Verify(deps []string) error {
-	for _, dep := range deps {
-		switch dep {
-		case "uv":
-			if !l.commandExists("uv") {
-				return fmt.Errorf("verification failed: uv not found")
-			}
-		case "segger-jlink":
-			if !l.commandExists("JLinkExe") {
-				return fmt.Errorf("verification failed: JLinkExe not found")
-			}
-		}
-	}
-
-	ui.PrintSuccess("Installation verified - all tools present")
-	return nil
-}
-
 // Helper functions
 
 // detectPackageManager detects which package manager is available
