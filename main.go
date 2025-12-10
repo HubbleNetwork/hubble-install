@@ -175,12 +175,8 @@ func main() {
 	// Now we can calculate total steps:
 	// Base: 3 (credentials, board, prerequisites) + 1 (flash/generate)
 	// +1 if dependencies need installing
-	// +1 if J-Link board (probe check)
 	totalSteps = 4
 	if len(missing) > 0 {
-		totalSteps++
-	}
-	if selectedBoard.RequiresJLink() {
 		totalSteps++
 	}
 
@@ -234,53 +230,6 @@ func main() {
 		}
 
 		ui.PrintSuccess("All dependencies installed")
-		if debugFlag {
-			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-	}
-
-	// =========================================================================
-	// Step 5: Check J-Link probe (only for J-Link boards)
-	// =========================================================================
-	if selectedBoard.RequiresJLink() {
-		currentStep++
-		stepStart = time.Now()
-		ui.PrintStep("Checking for J-Link probe", currentStep, totalSteps)
-
-		probeDetected := false
-		for !probeDetected {
-			if installer.CheckJLinkProbe() {
-				ui.PrintSuccess("J-Link probe detected")
-				probeDetected = true
-			} else {
-				ui.PrintWarning("No J-Link probe detected")
-				ui.PrintInfo("Please ensure:")
-				ui.PrintInfo("  • Developer board is connected via USB")
-				ui.PrintInfo("  • Using a data cable (not charge-only)")
-				ui.PrintInfo("  • Board is powered on")
-				fmt.Println()
-
-				options := []string{
-					"Retry - Check for probe again",
-					"Continue anyway - Proceed without probe",
-					"Exit - Cancel installation",
-				}
-				choice := ui.PromptChoice("What would you like to do?", options)
-
-				switch choice {
-				case 0: // Retry
-					fmt.Println()
-					ui.PrintInfo("Checking again...")
-					continue
-				case 1: // Continue anyway
-					ui.PrintWarning("Continuing without probe detection")
-					probeDetected = true
-				case 2: // Exit
-					os.Exit(0)
-				}
-			}
-		}
-
 		if debugFlag {
 			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 		}

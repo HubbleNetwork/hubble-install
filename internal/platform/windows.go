@@ -40,11 +40,6 @@ func (w *WindowsInstaller) CleanDependencies() error {
 	return fmt.Errorf("windows platform not yet implemented")
 }
 
-// CheckJLinkProbe checks if a J-Link probe is connected (placeholder)
-func (w *WindowsInstaller) CheckJLinkProbe() bool {
-	return true // Placeholder - always return true
-}
-
 // FlashBoard is not implemented for Windows yet
 func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult, error) {
 	return nil, fmt.Errorf("windows platform not yet implemented")

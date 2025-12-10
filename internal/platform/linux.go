@@ -264,19 +264,6 @@ func (l *LinuxInstaller) installUV() error {
 	return nil
 }
 
-// CheckJLinkProbe checks if a J-Link probe is connected
-func (l *LinuxInstaller) CheckJLinkProbe() bool {
-	// Use lsusb to check for SEGGER devices
-	cmd := exec.Command("lsusb")
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return false
-	}
-	outputStr := strings.ToLower(string(output))
-	// Look for SEGGER
-	return strings.Contains(outputStr, "segger")
-}
-
 // FlashBoard flashes the specified board using uvx (for J-Link boards)
 func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board string) (*FlashResult, error) {
 	ui.PrintInfo(fmt.Sprintf("Flashing board: %s", board))

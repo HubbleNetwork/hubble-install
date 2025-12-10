@@ -25,7 +25,7 @@ type MissingDependency struct {
 
 // FlashResult contains the result of a flash operation
 type FlashResult struct {
-	DeviceName string // Device name (for J-Link flash)
+	DeviceName  string // Device name (for J-Link flash)
 	HexFilePath string // Path to generated hex file (for Uniflash)
 }
 
@@ -45,9 +45,6 @@ type Installer interface {
 
 	// CleanDependencies removes uv and segger-jlink and clears Homebrew cache
 	CleanDependencies() error
-
-	// CheckJLinkProbe checks if a J-Link probe is connected
-	CheckJLinkProbe() bool
 
 	// FlashBoard flashes the specified board with credentials and returns the result
 	FlashBoard(orgID, apiToken, board string) (*FlashResult, error)
