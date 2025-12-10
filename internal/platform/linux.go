@@ -389,20 +389,27 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board string) (*FlashR
 		return nil, fmt.Errorf("failed to start command: %w", err)
 	}
 
+	// Channel to capture hex file path from output
 	hexPathChan := make(chan string, 1)
+
 	go l.streamOutputAndCaptureHexPath(stdout, hexPathChan)
 	go l.streamOutput(stderr)
 
-	if err := cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("command failed: %w", err)
+	// Wait for command to complete
+	cmdErr := cmd.Wait()
+
+	// Check command exit code
+	if cmdErr != nil {
+		return nil, fmt.Errorf("command failed: %w", cmdErr)
 	}
 
+	// Get hex file path from channel
 	var hexPath string
 	select {
 	case hexPath = <-hexPathChan:
 	default:
-		homeDir := os.Getenv("HOME")
-		hexPath = filepath.Join(homeDir, ".hubble", board+".hex")
+		// If we couldn't capture the path, it likely failed
+		return nil, fmt.Errorf("hex file was not generated - check device connection")
 	}
 
 	ui.PrintSuccess("Hex file generated successfully!")

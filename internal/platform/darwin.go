@@ -403,8 +403,11 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board string) (*Flash
 	go d.streamOutput(stderr)
 
 	// Wait for command to complete
-	if err := cmd.Wait(); err != nil {
-		return nil, fmt.Errorf("command failed: %w", err)
+	cmdErr := cmd.Wait()
+
+	// Check command exit code
+	if cmdErr != nil {
+		return nil, fmt.Errorf("command failed: %w", cmdErr)
 	}
 
 	// Get hex file path from channel
@@ -412,9 +415,8 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board string) (*Flash
 	select {
 	case hexPath = <-hexPathChan:
 	default:
-		// If we couldn't capture the path, try to find it in a default location
-		homeDir, _ := os.UserHomeDir()
-		hexPath = fmt.Sprintf("%s/.hubble/%s.hex", homeDir, board)
+		// If we couldn't capture the path, it likely failed
+		return nil, fmt.Errorf("hex file was not generated")
 	}
 
 	ui.PrintSuccess("Hex file generated successfully!")
@@ -539,7 +541,7 @@ func (d *DarwinInstaller) streamOutputAndCaptureHexPath(pipe io.ReadCloser, hexP
 		// Look for hex file path in the output
 		// Pattern: Hex file written to "/path/to/file.hex"
 		if strings.Contains(line, ".hex") {
-			// Extract quoted path (like device name extraction)
+			// Extract quoted path
 			startQuote := strings.Index(line, "\"")
 			if startQuote != -1 {
 				endQuote := strings.Index(line[startQuote+1:], "\"")
