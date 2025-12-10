@@ -85,7 +85,7 @@ func main() {
 	// Step 1: Get credentials (may include pre-configured board)
 	// =========================================================================
 	currentStep := 1
-	totalSteps := 0 // Will be calculated after we know board and dependencies
+	totalSteps := 0
 	stepStart := time.Now()
 	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
 
@@ -141,7 +141,6 @@ func main() {
 		ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
 	}
 
-	// Now we know the board, show board-specific info
 	fmt.Println()
 	if selectedBoard.RequiresJLink() {
 		ui.PrintInfo("This board uses SEGGER J-Link for direct flashing.")
@@ -172,9 +171,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Now we can calculate total steps:
-	// Base: 3 (credentials, board, prerequisites) + 1 (flash/generate)
-	// +1 if dependencies need installing
 	totalSteps = 4
 	if len(missing) > 0 {
 		totalSteps++
