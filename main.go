@@ -85,8 +85,9 @@ func main() {
 	// Step 1: Get credentials (may include pre-configured board)
 	// =========================================================================
 	currentStep := 1
+	totalSteps := 0 // Will be calculated after we know board and dependencies
 	stepStart := time.Now()
-	ui.PrintStep("Configuring credentials", currentStep, 0) // 0 = don't show total yet
+	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
 
 	cfg, preConfigured, err := config.PromptForConfig()
 	if err != nil {
@@ -114,7 +115,7 @@ func main() {
 	// =========================================================================
 	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Selecting developer board", currentStep, 0)
+	ui.PrintStep("Selecting developer board", currentStep, totalSteps)
 
 	var selectedBoard boards.Board
 	if cfg.Board != "" {
@@ -162,13 +163,25 @@ func main() {
 	// =========================================================================
 	currentStep++
 	stepStart = time.Now()
-	ui.PrintStep("Checking prerequisites", currentStep, 0)
+	ui.PrintStep("Checking prerequisites", currentStep, totalSteps)
 
 	requiredDeps := selectedBoard.GetDependencies()
 	missing, err := installer.CheckPrerequisites(requiredDeps)
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Prerequisites check failed: %v", err))
 		os.Exit(1)
+	}
+
+	// Now we can calculate total steps:
+	// Base: 3 (credentials, board, prerequisites) + 1 (flash/generate)
+	// +1 if dependencies need installing
+	// +1 if J-Link board (probe check)
+	totalSteps = 4
+	if len(missing) > 0 {
+		totalSteps++
+	}
+	if selectedBoard.RequiresJLink() {
+		totalSteps++
 	}
 
 	if len(missing) > 0 {
@@ -196,7 +209,7 @@ func main() {
 	if len(missing) > 0 {
 		currentStep++
 		stepStart = time.Now()
-		ui.PrintStep("Installing dependencies", currentStep, 0)
+		ui.PrintStep("Installing dependencies", currentStep, totalSteps)
 
 		// Check if we need to install package manager first
 		needsPackageManager := false
@@ -232,7 +245,7 @@ func main() {
 	if selectedBoard.RequiresJLink() {
 		currentStep++
 		stepStart = time.Now()
-		ui.PrintStep("Checking for J-Link probe", currentStep, 0)
+		ui.PrintStep("Checking for J-Link probe", currentStep, totalSteps)
 
 		probeDetected := false
 		for !probeDetected {
@@ -280,7 +293,7 @@ func main() {
 	}
 
 	// =========================================================================
-	// Step 6: Flash board or generate hex file
+	// Final Step: Flash board or generate hex file
 	// =========================================================================
 	currentStep++
 	stepStart = time.Now()
@@ -296,7 +309,7 @@ func main() {
 			os.Exit(0)
 		}
 
-		ui.PrintStep("Flashing board", currentStep, 0)
+		ui.PrintStep("Flashing board", currentStep, totalSteps)
 		result, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
@@ -326,7 +339,7 @@ func main() {
 			os.Exit(0)
 		}
 
-		ui.PrintStep("Generating hex file", currentStep, 0)
+		ui.PrintStep("Generating hex file", currentStep, totalSteps)
 		result, err := installer.GenerateHexFile(cfg.OrgID, cfg.APIToken, cfg.Board)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Hex file generation failed: %v", err))

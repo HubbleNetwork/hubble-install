@@ -32,7 +32,11 @@ func PrintBanner() {
 // PrintStep prints a step indicator
 func PrintStep(step string, current, total int) {
 	fmt.Println()
-	blue.Printf("[%d/%d] %s\n", current, total, step)
+	if total > 0 {
+		blue.Printf("[%d/%d] %s\n", current, total, step)
+	} else {
+		blue.Printf("[%d] %s\n", current, step)
+	}
 }
 
 // PrintSuccess prints a success message
