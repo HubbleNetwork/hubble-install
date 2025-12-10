@@ -278,6 +278,10 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board, deviceName string) 
 		}
 	}
 
+	// Clean the cache to prevent stale versions
+	cleanCmd := exec.Command(uvPath, "cache", "clean", "pyhubbledemo")
+	cleanCmd.Run() // Ignore errors
+
 	// Build the command
 	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
 	if deviceName != "" {
@@ -347,6 +351,10 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
 		}
 	}
+
+	// Clean the cache to prevent stale versions
+	cleanCmd := exec.Command(uvPath, "cache", "clean", "pyhubbledemo")
+	cleanCmd.Run() // Ignore errors
 
 	// Build the command with -f for output file
 	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken, "-f", hexFilePath}
