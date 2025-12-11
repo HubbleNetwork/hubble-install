@@ -88,11 +88,12 @@ func PromptForConfig() (*Config, bool, error) {
 					if len(parts) == 3 {
 						boardID := strings.TrimSpace(parts[2])
 						if boardID != "" {
-							// Validate board ID exists
-							if _, err := boards.GetBoard(boardID); err != nil {
+							// Validate board ID exists and resolve to canonical ID
+							board, err := boards.GetBoard(boardID)
+							if err != nil {
 								return nil, false, fmt.Errorf("invalid board_id from HUBBLE_CREDENTIALS: %w", err)
 							}
-							config.Board = boardID
+							config.Board = board.ID
 						}
 					}
 					preConfigured = true
