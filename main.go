@@ -85,7 +85,7 @@ func main() {
 	// Step 1: Get credentials (may include pre-configured board)
 	// =========================================================================
 	currentStep := 1
-	totalSteps := 0 // Will be calculated after we know board and dependencies
+	totalSteps := 0
 	stepStart := time.Now()
 	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
 
@@ -141,7 +141,6 @@ func main() {
 		ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
 	}
 
-	// Now we know the board, show board-specific info
 	fmt.Println()
 	if selectedBoard.RequiresJLink() {
 		ui.PrintInfo("This board uses SEGGER J-Link for direct flashing.")
@@ -172,15 +171,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Now we can calculate total steps:
-	// Base: 3 (credentials, board, prerequisites) + 1 (flash/generate)
-	// +1 if dependencies need installing
-	// +1 if J-Link board (probe check)
 	totalSteps = 4
 	if len(missing) > 0 {
-		totalSteps++
-	}
-	if selectedBoard.RequiresJLink() {
 		totalSteps++
 	}
 
@@ -239,53 +231,6 @@ func main() {
 		}
 	}
 
-	// =========================================================================
-	// Step 5: Check J-Link probe (only for J-Link boards)
-	// =========================================================================
-	if selectedBoard.RequiresJLink() {
-		currentStep++
-		stepStart = time.Now()
-		ui.PrintStep("Checking for J-Link probe", currentStep, totalSteps)
-
-		probeDetected := false
-		for !probeDetected {
-			if installer.CheckJLinkProbe() {
-				ui.PrintSuccess("J-Link probe detected")
-				probeDetected = true
-			} else {
-				ui.PrintWarning("No J-Link probe detected")
-				ui.PrintInfo("Please ensure:")
-				ui.PrintInfo("  • Developer board is connected via USB")
-				ui.PrintInfo("  • Using a data cable (not charge-only)")
-				ui.PrintInfo("  • Board is powered on")
-				fmt.Println()
-
-				options := []string{
-					"Retry - Check for probe again",
-					"Continue anyway - Proceed without probe",
-					"Exit - Cancel installation",
-				}
-				choice := ui.PromptChoice("What would you like to do?", options)
-
-				switch choice {
-				case 0: // Retry
-					fmt.Println()
-					ui.PrintInfo("Checking again...")
-					continue
-				case 1: // Continue anyway
-					ui.PrintWarning("Continuing without probe detection")
-					probeDetected = true
-				case 2: // Exit
-					os.Exit(0)
-				}
-			}
-		}
-
-		if debugFlag {
-			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-	}
-
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		ui.PrintError(fmt.Sprintf("Invalid configuration: %v", err))
@@ -298,9 +243,6 @@ func main() {
 	currentStep++
 	stepStart = time.Now()
 
-	fmt.Println()
-	ui.PrintSuccess("All prerequisites installed!")
-
 	if selectedBoard.RequiresJLink() {
 		// J-Link path: Direct flash
 		if !ui.PromptYesNo(fmt.Sprintf("Would you like to flash your %s now?", selectedBoard.Name), true) {
@@ -309,8 +251,11 @@ func main() {
 			os.Exit(0)
 		}
 
+		// Prompt for optional device name
+		deviceName := ui.PromptOptionalInput("What should the device name be?")
+
 		ui.PrintStep("Flashing board", currentStep, totalSteps)
-		result, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board)
+		result, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board, deviceName)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
 			os.Exit(1)
@@ -318,13 +263,6 @@ func main() {
 
 		if debugFlag {
 			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-
-		// Verify installation
-		fmt.Println()
-		ui.PrintInfo("Verifying installation...")
-		if err := installer.Verify(requiredDeps); err != nil {
-			ui.PrintWarning(fmt.Sprintf("Verification warning: %v", err))
 		}
 
 		// Print J-Link completion banner
@@ -339,8 +277,11 @@ func main() {
 			os.Exit(0)
 		}
 
+		// Prompt for optional device name
+		deviceName := ui.PromptOptionalInput("What should the device name be?")
+
 		ui.PrintStep("Generating hex file", currentStep, totalSteps)
-		result, err := installer.GenerateHexFile(cfg.OrgID, cfg.APIToken, cfg.Board)
+		result, err := installer.GenerateHexFile(cfg.OrgID, cfg.APIToken, cfg.Board, deviceName)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Hex file generation failed: %v", err))
 			os.Exit(1)
@@ -348,13 +289,6 @@ func main() {
 
 		if debugFlag {
 			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-
-		// Verify installation
-		fmt.Println()
-		ui.PrintInfo("Verifying installation...")
-		if err := installer.Verify(requiredDeps); err != nil {
-			ui.PrintWarning(fmt.Sprintf("Verification warning: %v", err))
 		}
 
 		// Print Uniflash completion banner

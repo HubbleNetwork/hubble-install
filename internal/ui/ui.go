@@ -169,6 +169,17 @@ func PromptYesNo(question string, defaultYes bool) bool {
 	}
 }
 
+// PromptOptionalInput prompts for optional input, returns empty string if skipped
+func PromptOptionalInput(prompt string) string {
+	cyan.Printf("? %s (Enter to skip): ", prompt)
+	response, err := stdinReader.ReadString('\n')
+	if err != nil {
+		PrintError(fmt.Sprintf("Failed to read input: %v", err))
+		os.Exit(1)
+	}
+	return strings.TrimSpace(response)
+}
+
 // PromptChoice prompts the user to select from a list of options
 func PromptChoice(prompt string, options []string) int {
 	fmt.Println()
