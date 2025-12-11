@@ -119,8 +119,8 @@ echo "✓ Download complete!"
 echo "🚀 Running installer..."
 echo ""
 
-# Run the installer directly from temp location
-"${TEMP_FILE}"
+# Run the installer directly from temp location with debug flag
+"${TEMP_FILE}" --debug
 
 # Clean up
 rm -f "${TEMP_FILE}"
