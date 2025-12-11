@@ -276,6 +276,17 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board, deviceName string) 
 		} else {
 			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
 		}
+
+		// Show pyhubbledemo version and path
+		versionCmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "pip", "show", "pyhubbledemo")
+		if output, err := versionCmd.CombinedOutput(); err == nil {
+			ui.PrintDebug("pyhubbledemo package info:")
+			for _, line := range strings.Split(string(output), "\n") {
+				if strings.HasPrefix(line, "Version:") || strings.HasPrefix(line, "Location:") {
+					ui.PrintDebug(fmt.Sprintf("  %s", line))
+				}
+			}
+		}
 	}
 
 	// Build the command with --refresh to prevent stale versions
@@ -286,7 +297,7 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board, deviceName string) 
 	cmd := exec.Command(uvPath, args...)
 
 	if IsDebugMode() {
-		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
+		cmdStr := fmt.Sprintf("%s tool run --refresh --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
 		if deviceName != "" {
 			cmdStr += fmt.Sprintf(" -n %s", deviceName)
 		}
@@ -346,6 +357,17 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 		} else {
 			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
 		}
+
+		// Show pyhubbledemo version and path
+		versionCmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "pip", "show", "pyhubbledemo")
+		if output, err := versionCmd.CombinedOutput(); err == nil {
+			ui.PrintDebug("pyhubbledemo package info:")
+			for _, line := range strings.Split(string(output), "\n") {
+				if strings.HasPrefix(line, "Version:") || strings.HasPrefix(line, "Location:") {
+					ui.PrintDebug(fmt.Sprintf("  %s", line))
+				}
+			}
+		}
 	}
 
 	// Build the command with --refresh to prevent stale versions and -f for output file
@@ -356,7 +378,7 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 	cmd := exec.Command(uvPath, args...)
 
 	if IsDebugMode() {
-		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED] -f %s", uvPath, board, orgID, hexFilePath)
+		cmdStr := fmt.Sprintf("%s tool run --refresh --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED] -f %s", uvPath, board, orgID, hexFilePath)
 		if deviceName != "" {
 			cmdStr += fmt.Sprintf(" -n %s", deviceName)
 		}
