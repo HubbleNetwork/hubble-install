@@ -278,12 +278,8 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board, deviceName string) 
 		}
 	}
 
-	// Clean the cache to prevent stale versions
-	cleanCmd := exec.Command(uvPath, "cache", "clean", "pyhubbledemo")
-	cleanCmd.Run() // Ignore errors
-
-	// Build the command
-	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
+	// Build the command with --refresh to prevent stale versions
+	args := []string{"tool", "run", "--refresh", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
 	if deviceName != "" {
 		args = append(args, "-n", deviceName)
 	}
@@ -352,12 +348,8 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 		}
 	}
 
-	// Clean the cache to prevent stale versions
-	cleanCmd := exec.Command(uvPath, "cache", "clean", "pyhubbledemo")
-	cleanCmd.Run() // Ignore errors
-
-	// Build the command with -f for output file
-	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken, "-f", hexFilePath}
+	// Build the command with --refresh to prevent stale versions and -f for output file
+	args := []string{"tool", "run", "--refresh", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken, "-f", hexFilePath}
 	if deviceName != "" {
 		args = append(args, "-n", deviceName)
 	}
