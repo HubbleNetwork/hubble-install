@@ -130,74 +130,6 @@ func (d *DarwinInstaller) InstallPackageManager() error {
 	return nil
 }
 
-// CleanDependencies removes uv and segger-jlink and clears Homebrew cache
-func (d *DarwinInstaller) CleanDependencies() error {
-	var errors []string
-
-	// Uninstall uv if present
-	if d.commandExists("uv") {
-		ui.PrintInfo("Removing uv...")
-
-		// Try brew uninstall first
-		cmd := exec.Command("brew", "uninstall", "uv", "--force", "--ignore-dependencies")
-		if IsDebugMode() {
-			ui.PrintDebug("Attempting: brew uninstall uv --force --ignore-dependencies")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-		}
-
-		if err := cmd.Run(); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to remove uv: %v", err))
-		} else {
-			ui.PrintSuccess("uv removed")
-		}
-
-		// Remove uv cache
-		uvCache := os.ExpandEnv("$HOME/.cache/uv")
-		if _, err := os.Stat(uvCache); err == nil {
-			if IsDebugMode() {
-				ui.PrintDebug(fmt.Sprintf("Removing cache: %s", uvCache))
-			}
-			os.RemoveAll(uvCache)
-		}
-	}
-
-	// Uninstall segger-jlink if present
-	if d.commandExists("JLinkExe") {
-		ui.PrintInfo("Removing segger-jlink...")
-		cmd := exec.Command("brew", "uninstall", "segger-jlink", "--force")
-		if IsDebugMode() {
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-		}
-		if err := cmd.Run(); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to remove segger-jlink: %v", err))
-		} else {
-			ui.PrintSuccess("segger-jlink removed")
-		}
-	}
-
-	// Clear Homebrew cache
-	cacheDir := os.ExpandEnv("$HOME/Library/Caches/Homebrew/downloads")
-	if _, err := os.Stat(cacheDir); err == nil {
-		ui.PrintInfo("Clearing Homebrew cache...")
-		if IsDebugMode() {
-			ui.PrintDebug(fmt.Sprintf("Removing: %s", cacheDir))
-		}
-		if err := os.RemoveAll(cacheDir); err != nil {
-			errors = append(errors, fmt.Sprintf("failed to clear cache: %v", err))
-		} else {
-			ui.PrintSuccess("Homebrew cache cleared")
-		}
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("cleanup completed with errors: %v", errors)
-	}
-
-	return nil
-}
-
 // InstallDependencies installs the specified dependencies
 func (d *DarwinInstaller) InstallDependencies(deps []string) error {
 	// First ensure Homebrew is installed
@@ -268,41 +200,12 @@ func (d *DarwinInstaller) FlashBoard(orgID, apiToken, board, deviceName string) 
 		return nil, fmt.Errorf("uv not found in PATH: %w", err)
 	}
 
-	if IsDebugMode() {
-		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
-		ui.PrintDebug(fmt.Sprintf("Org ID: %s", orgID))
-		if len(apiToken) > 11 {
-			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", apiToken[:7], apiToken[len(apiToken)-4:], len(apiToken)))
-		} else {
-			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
-		}
-
-		// Show pyhubbledemo version and path
-		versionCmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "pip", "show", "pyhubbledemo")
-		if output, err := versionCmd.CombinedOutput(); err == nil {
-			ui.PrintDebug("pyhubbledemo package info:")
-			for _, line := range strings.Split(string(output), "\n") {
-				if strings.HasPrefix(line, "Version:") || strings.HasPrefix(line, "Location:") {
-					ui.PrintDebug(fmt.Sprintf("  %s", line))
-				}
-			}
-		}
-	}
-
 	// Build the command with --refresh to prevent stale versions
 	args := []string{"tool", "run", "--refresh", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
 	if deviceName != "" {
 		args = append(args, "-n", deviceName)
 	}
 	cmd := exec.Command(uvPath, args...)
-
-	if IsDebugMode() {
-		cmdStr := fmt.Sprintf("%s tool run --refresh --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
-		if deviceName != "" {
-			cmdStr += fmt.Sprintf(" -n %s", deviceName)
-		}
-		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
-	}
 
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
 	cmd.Stdout = os.Stdout
@@ -344,31 +247,12 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 	}
 	hexFilePath := filepath.Join(currentDir, filename)
 
-	if IsDebugMode() {
-		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
-		ui.PrintDebug(fmt.Sprintf("Org ID: %s", orgID))
-		ui.PrintDebug(fmt.Sprintf("Hex file path: %s", hexFilePath))
-		if len(apiToken) > 11 {
-			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", apiToken[:7], apiToken[len(apiToken)-4:], len(apiToken)))
-		} else {
-			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
-		}
-	}
-
 	// Build the command with --refresh to prevent stale versions and -f for output file
 	args := []string{"tool", "run", "--refresh", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken, "-f", hexFilePath}
 	if deviceName != "" {
 		args = append(args, "-n", deviceName)
 	}
 	cmd := exec.Command(uvPath, args...)
-
-	if IsDebugMode() {
-		cmdStr := fmt.Sprintf("%s tool run --refresh --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED] -f %s", uvPath, board, orgID, hexFilePath)
-		if deviceName != "" {
-			cmdStr += fmt.Sprintf(" -n %s", deviceName)
-		}
-		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
-	}
 
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
 	cmd.Stdout = os.Stdout
@@ -408,10 +292,6 @@ func (d *DarwinInstaller) setupBrewPath() error {
 	if !strings.Contains(currentPath, brewPath) {
 		newPath := brewPath + ":" + currentPath
 		os.Setenv("PATH", newPath)
-
-		if IsDebugMode() {
-			ui.PrintDebug(fmt.Sprintf("Added %s to PATH", brewPath))
-		}
 	}
 
 	return nil
@@ -421,11 +301,8 @@ func (d *DarwinInstaller) setupBrewPath() error {
 func (d *DarwinInstaller) runBrewInstall(pkg string, showOutput bool) error {
 	cmd := exec.Command("brew", "install", pkg)
 
-	// Show output if requested or in debug mode
-	if showOutput || IsDebugMode() {
-		if IsDebugMode() {
-			ui.PrintDebug(fmt.Sprintf("Running: brew install %s", pkg))
-		}
+	// Show output if requested
+	if showOutput {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}

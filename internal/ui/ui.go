@@ -59,12 +59,6 @@ func PrintInfo(message string) {
 	cyan.Printf("ℹ %s\n", message)
 }
 
-// PrintDebug prints a debug message (gray color)
-func PrintDebug(message string) {
-	gray := color.New(color.FgHiBlack)
-	gray.Printf("🔍 [DEBUG] %s\n", message)
-}
-
 // Global reader for interactive input
 var stdinReader *bufio.Reader
 
@@ -132,12 +126,7 @@ func PromptPassword(prompt string) string {
 		os.Exit(1)
 	}
 
-	result := string(bytePassword)
-	if result == "" {
-		PrintDebug("Empty password received from term.ReadPassword")
-	}
-
-	return result
+	return string(bytePassword)
 }
 
 // PromptYesNo prompts the user for a yes/no answer
@@ -207,16 +196,12 @@ func PromptChoice(prompt string, options []string) int {
 }
 
 // PrintCompletionBanner prints the success completion banner
-func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName string, debugMode bool) {
+func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName string) {
 	green.Print(`
 ╔═══════════════════════════════════════════════════════════╗
 ║     ✓ Installation Complete!                              ║
 ╚═══════════════════════════════════════════════════════════╝
 `)
-
-	if debugMode {
-		cyan.Printf("⏱️  Total time: %.1f seconds\n\n", duration.Seconds())
-	}
 
 	// Main message
 	fmt.Println()
@@ -236,16 +221,12 @@ func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName s
 }
 
 // PrintUniflashCompletionBanner prints the completion banner for TI Uniflash boards
-func PrintUniflashCompletionBanner(duration time.Duration, hexFilePath, boardName string, debugMode bool) {
+func PrintUniflashCompletionBanner(duration time.Duration, hexFilePath, boardName string) {
 	green.Print(`
 ╔═══════════════════════════════════════════════════════════╗
 ║     ✓ Hex File Generated!                                 ║
 ╚═══════════════════════════════════════════════════════════╝
 `)
-
-	if debugMode {
-		cyan.Printf("⏱️  Total time: %.1f seconds\n\n", duration.Seconds())
-	}
 
 	// Main message
 	fmt.Println()

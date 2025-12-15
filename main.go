@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -12,45 +11,10 @@ import (
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
 )
 
-var (
-	cleanFlag bool
-	debugFlag bool
-)
-
 func main() {
-	// Parse command line flags
-	flag.BoolVar(&cleanFlag, "clean", false, "Remove existing uv and segger-jlink dependencies and clear Homebrew cache, then exit")
-	flag.BoolVar(&debugFlag, "debug", false, "Enable debug mode (reserved for future use)")
-	flag.Parse()
-
-	// Set debug mode globally
-	platform.SetDebugMode(debugFlag)
-
 	// Print welcome banner
 	ui.PrintBanner()
 	fmt.Println()
-
-	// Handle clean flag (remove dependencies and exit with verbose output)
-	if cleanFlag {
-		// Clean mode always has debug-level output
-		platform.SetDebugMode(true)
-
-		ui.PrintWarning("Clean mode: Removing existing dependencies...")
-		installer, err := platform.GetInstaller()
-		if err != nil {
-			ui.PrintError(fmt.Sprintf("Platform detection failed: %v", err))
-			os.Exit(1)
-		}
-
-		if err := installer.CleanDependencies(); err != nil {
-			ui.PrintError(fmt.Sprintf("Failed to clean dependencies: %v", err))
-			os.Exit(1)
-		}
-		ui.PrintSuccess("Dependencies cleaned successfully")
-		fmt.Println()
-		ui.PrintInfo("Clean complete. Run without -clean flag to install.")
-		os.Exit(0)
-	}
 
 	// Show what will happen
 	ui.PrintInfo("This installer will:")
@@ -70,10 +34,6 @@ func main() {
 
 	// Start timer for the installation
 	startTime := time.Now()
-
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Installation start time: %s", startTime.Format(time.RFC3339)))
-	}
 
 	// Detect platform
 	installer, err := platform.GetInstaller()
@@ -104,10 +64,6 @@ func main() {
 		fmt.Println()
 		fmt.Println("Your Hubble Org ID and API Token are used to register your board to your organization.")
 		fmt.Println()
-	}
-
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
 	}
 
 	// =========================================================================
@@ -151,12 +107,6 @@ func main() {
 	}
 	fmt.Println()
 
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Board: %s, FlashMethod: %s", selectedBoard.ID, selectedBoard.FlashMethod))
-		ui.PrintDebug(fmt.Sprintf("Dependencies: %v", selectedBoard.GetDependencies()))
-		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-	}
-
 	// =========================================================================
 	// Step 3: Check prerequisites (based on selected board)
 	// =========================================================================
@@ -191,10 +141,6 @@ func main() {
 		ui.PrintSuccess("All prerequisites satisfied")
 	}
 
-	if debugFlag {
-		ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-	}
-
 	// =========================================================================
 	// Step 4: Install dependencies (only if needed)
 	// =========================================================================
@@ -226,9 +172,6 @@ func main() {
 		}
 
 		ui.PrintSuccess("All dependencies installed")
-		if debugFlag {
-			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
 	}
 
 	// Validate configuration
@@ -261,13 +204,9 @@ func main() {
 			os.Exit(1)
 		}
 
-		if debugFlag {
-			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-
 		// Print J-Link completion banner
 		duration := time.Since(startTime)
-		ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, result.DeviceName, debugFlag)
+		ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, result.DeviceName)
 
 	} else {
 		// Uniflash path: Generate hex file
@@ -287,13 +226,9 @@ func main() {
 			os.Exit(1)
 		}
 
-		if debugFlag {
-			ui.PrintDebug(fmt.Sprintf("Step %d took: %v", currentStep, time.Since(stepStart)))
-		}
-
 		// Print Uniflash completion banner
 		duration := time.Since(startTime)
-		ui.PrintUniflashCompletionBanner(duration, result.HexFilePath, selectedBoard.Name, debugFlag)
+		ui.PrintUniflashCompletionBanner(duration, result.HexFilePath, selectedBoard.Name)
 	}
 
 	os.Exit(0)

@@ -143,96 +143,6 @@ func (l *LinuxInstaller) InstallDependencies(deps []string) error {
 	return nil
 }
 
-// CleanDependencies removes uv and segger-jlink
-func (l *LinuxInstaller) CleanDependencies() error {
-	var errors []string
-
-	// Ensure we have sudo access
-	if err := l.ensureSudoAccess(); err != nil {
-		return err
-	}
-
-	// Uninstall uv if present (installed via astral.sh, not package manager)
-	if l.commandExists("uv") {
-		ui.PrintInfo("Removing uv...")
-
-		homeDir := os.Getenv("HOME")
-		uvBinary := filepath.Join(homeDir, ".cargo", "bin", "uv")
-
-		if _, err := os.Stat(uvBinary); err == nil {
-			if err := os.Remove(uvBinary); err != nil {
-				errors = append(errors, fmt.Sprintf("failed to remove uv binary: %v", err))
-			} else {
-				ui.PrintSuccess("uv removed")
-			}
-		}
-
-		// Remove uv cache
-		uvCache := filepath.Join(homeDir, ".cache", "uv")
-		if _, err := os.Stat(uvCache); err == nil {
-			if IsDebugMode() {
-				ui.PrintDebug(fmt.Sprintf("Removing cache: %s", uvCache))
-			}
-			if err := os.RemoveAll(uvCache); err != nil {
-				errors = append(errors, fmt.Sprintf("failed to remove uv cache: %v", err))
-			}
-		}
-	}
-
-	// Uninstall segger-jlink if present
-	if l.commandExists("JLinkExe") {
-		ui.PrintInfo("Removing segger-jlink...")
-
-		// Check if installed via package manager (DEB/RPM)
-		var pkgInstalled bool
-		switch l.pkgManager {
-		case PackageManagerAPT:
-			checkCmd := exec.Command("dpkg", "-l", "jlink")
-			pkgInstalled = checkCmd.Run() == nil
-		case PackageManagerDNF, PackageManagerYUM:
-			checkCmd := exec.Command("rpm", "-q", "jlink")
-			pkgInstalled = checkCmd.Run() == nil
-		}
-
-		if pkgInstalled {
-			// Remove via package manager
-			if err := l.removeJLinkPackage(); err != nil {
-				errors = append(errors, fmt.Sprintf("failed to remove segger-jlink package: %v", err))
-			} else {
-				ui.PrintSuccess("segger-jlink package removed")
-			}
-		} else {
-			// Remove TGZ installation
-			homeDir := os.Getenv("HOME")
-			jlinkDir := filepath.Join(homeDir, "opt/SEGGER")
-
-			if _, err := os.Stat(jlinkDir); err == nil {
-				ui.PrintInfo(fmt.Sprintf("Removing %s...", jlinkDir))
-				if err := os.RemoveAll(jlinkDir); err != nil {
-					errors = append(errors, fmt.Sprintf("failed to remove J-Link directory: %v", err))
-				} else {
-					ui.PrintSuccess("segger-jlink removed")
-				}
-
-				// Remove UDEV rules
-				udevRules := "/etc/udev/rules.d/99-jlink.rules"
-				if _, err := os.Stat(udevRules); err == nil {
-					rmCmd := exec.Command("sudo", "rm", udevRules)
-					if err := rmCmd.Run(); err != nil {
-						ui.PrintWarning("Failed to remove UDEV rules - you may need to remove manually")
-					}
-				}
-			}
-		}
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("cleanup completed with errors: %v", errors)
-	}
-
-	return nil
-}
-
 // installUV installs uv using the official astral.sh installer
 func (l *LinuxInstaller) installUV() error {
 	// Download and run the uv installer script
@@ -253,10 +163,6 @@ func (l *LinuxInstaller) installUV() error {
 	currentPath := os.Getenv("PATH")
 	if !strings.Contains(currentPath, cargoPath) {
 		os.Setenv("PATH", cargoPath+":"+currentPath)
-
-		if IsDebugMode() {
-			ui.PrintDebug(fmt.Sprintf("Added %s to PATH", cargoPath))
-		}
 	}
 
 	return nil
@@ -272,30 +178,12 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board, deviceName string) (
 		return nil, fmt.Errorf("uv not found in PATH: %w", err)
 	}
 
-	if IsDebugMode() {
-		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
-		ui.PrintDebug(fmt.Sprintf("Org ID: %s", orgID))
-		if len(apiToken) > 11 {
-			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", apiToken[:7], apiToken[len(apiToken)-4:], len(apiToken)))
-		} else {
-			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
-		}
-	}
-
 	// Build the command
 	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
 	if deviceName != "" {
 		args = append(args, "-n", deviceName)
 	}
 	cmd := exec.Command(uvPath, args...)
-
-	if IsDebugMode() {
-		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED]", uvPath, board, orgID)
-		if deviceName != "" {
-			cmdStr += fmt.Sprintf(" -n %s", deviceName)
-		}
-		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
-	}
 
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
 	cmd.Stdout = os.Stdout
@@ -324,14 +212,10 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board, deviceName stri
 		return nil, fmt.Errorf("uv not found in PATH: %w", err)
 	}
 
-	// Determine hex file path
-	homeDir, err := os.UserHomeDir()
+	// Determine hex file path in current working directory
+	currentDir, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-	hubbleDir := filepath.Join(homeDir, ".hubble")
-	if err := os.MkdirAll(hubbleDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create .hubble directory: %w", err)
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 
 	// Use device name for filename if provided, otherwise use board name
@@ -339,12 +223,7 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board, deviceName stri
 	if deviceName != "" {
 		filename = deviceName + ".hex"
 	}
-	hexFilePath := filepath.Join(hubbleDir, filename)
-
-	if IsDebugMode() {
-		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
-		ui.PrintDebug(fmt.Sprintf("Hex file path: %s", hexFilePath))
-	}
+	hexFilePath := filepath.Join(currentDir, filename)
 
 	// Build the command with -f for output file
 	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken, "-f", hexFilePath}
@@ -352,14 +231,6 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board, deviceName stri
 		args = append(args, "-n", deviceName)
 	}
 	cmd := exec.Command(uvPath, args...)
-
-	if IsDebugMode() {
-		cmdStr := fmt.Sprintf("%s tool run --from pyhubbledemo hubbledemo flash %s -o %s -t [REDACTED] -f %s", uvPath, board, orgID, hexFilePath)
-		if deviceName != "" {
-			cmdStr += fmt.Sprintf(" -n %s", deviceName)
-		}
-		ui.PrintDebug(fmt.Sprintf("Command: %s", cmdStr))
-	}
 
 	cmd.Env = append(os.Environ(), "PYTHONWARNINGS=ignore")
 	cmd.Stdout = os.Stdout
@@ -415,61 +286,11 @@ func (l *LinuxInstaller) installPackage(pkg string, showOutput bool) error {
 		return fmt.Errorf("unsupported package manager")
 	}
 
-	// Show output if requested or in debug mode
-	if showOutput || IsDebugMode() {
-		if IsDebugMode() {
-			ui.PrintDebug(fmt.Sprintf("Running package install: %s", pkg))
-		}
+	// Show output if requested
+	if showOutput {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
 
 	return cmd.Run()
 }
-
-// removePackage removes a package using the detected package manager
-func (l *LinuxInstaller) removePackage(pkg string) error {
-	var cmd *exec.Cmd
-
-	switch l.pkgManager {
-	case PackageManagerAPT:
-		cmd = exec.Command("sudo", "apt-get", "remove", "-y", pkg)
-	case PackageManagerDNF:
-		cmd = exec.Command("sudo", "dnf", "remove", "-y", pkg)
-	case PackageManagerYUM:
-		cmd = exec.Command("sudo", "yum", "remove", "-y", pkg)
-	default:
-		return fmt.Errorf("unsupported package manager")
-	}
-
-	if IsDebugMode() {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
-
-	return cmd.Run()
-}
-
-// removeJLinkPackage removes J-Link if installed via DEB/RPM package
-func (l *LinuxInstaller) removeJLinkPackage() error {
-	var cmd *exec.Cmd
-
-	switch l.pkgManager {
-	case PackageManagerAPT:
-		cmd = exec.Command("sudo", "dpkg", "-r", "jlink")
-	case PackageManagerDNF:
-		cmd = exec.Command("sudo", "dnf", "remove", "-y", "jlink")
-	case PackageManagerYUM:
-		cmd = exec.Command("sudo", "yum", "remove", "-y", "jlink")
-	default:
-		return fmt.Errorf("unsupported package manager")
-	}
-
-	if IsDebugMode() {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-	}
-
-	return cmd.Run()
-}
-
