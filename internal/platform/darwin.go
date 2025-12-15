@@ -331,14 +331,10 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 		return nil, fmt.Errorf("uv not found in PATH: %w", err)
 	}
 
-	// Determine hex file path
-	homeDir, err := os.UserHomeDir()
+	// Determine hex file path in current working directory
+	currentDir, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-	hubbleDir := filepath.Join(homeDir, ".hubble")
-	if err := os.MkdirAll(hubbleDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create .hubble directory: %w", err)
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 
 	// Use device name for filename if provided, otherwise use board name
@@ -346,7 +342,7 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 	if deviceName != "" {
 		filename = deviceName + ".hex"
 	}
-	hexFilePath := filepath.Join(hubbleDir, filename)
+	hexFilePath := filepath.Join(currentDir, filename)
 
 	if IsDebugMode() {
 		ui.PrintDebug(fmt.Sprintf("Using uv at: %s", uvPath))
@@ -356,17 +352,6 @@ func (d *DarwinInstaller) GenerateHexFile(orgID, apiToken, board, deviceName str
 			ui.PrintDebug(fmt.Sprintf("API Token: %s...%s (length: %d)", apiToken[:7], apiToken[len(apiToken)-4:], len(apiToken)))
 		} else {
 			ui.PrintDebug(fmt.Sprintf("API Token length: %d", len(apiToken)))
-		}
-
-		// Show pyhubbledemo version and path
-		versionCmd := exec.Command(uvPath, "tool", "run", "--from", "pyhubbledemo", "pip", "show", "pyhubbledemo")
-		if output, err := versionCmd.CombinedOutput(); err == nil {
-			ui.PrintDebug("pyhubbledemo package info:")
-			for _, line := range strings.Split(string(output), "\n") {
-				if strings.HasPrefix(line, "Version:") || strings.HasPrefix(line, "Location:") {
-					ui.PrintDebug(fmt.Sprintf("  %s", line))
-				}
-			}
 		}
 	}
 
