@@ -55,6 +55,14 @@ var AvailableBoards = []Board{
 		Vendor:      "Texas Instruments",
 		FlashMethod: FlashMethodUniflash,
 	},
+	{
+		ID:          "lp_em_cc2340r53",
+		Aliases:     []string{"ti_cc2340r53"},
+		Name:        "TI CC2340R53",
+		Description: "Texas Instruments CC2340R53 LaunchPad",
+		Vendor:      "Texas Instruments",
+		FlashMethod: FlashMethodUniflash,
+	},
 	// {
 	// 	ID:          "xg22_ek4108a",
 	// 	Name:        "xG22 EK4108A",

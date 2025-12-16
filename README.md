@@ -13,17 +13,17 @@ Cross-platform installer for Hubble Network developer boards. Flash Nordic and S
 
 ### One-Line Install
 
-**macOS/Linux:**
+**All Platforms:**
+
 ```bash
-curl -fsSL https://hubble.com/install.sh | bash
+# macOS/Linux
+curl -fsSL https://get.hubble.com | bash
+
+# Windows (PowerShell as Administrator)
+iex (irm https://get.hubble.com)
 ```
 
-**Windows (PowerShell as Administrator):**
-```powershell
-iex "& { $(irm https://hubble.com/install.ps1) }"
-```
-
-This will:
+The installer will:
 1. Detect your OS and architecture automatically
 2. Download the appropriate binary
 3. Run the installer immediately
