@@ -8,22 +8,28 @@ Cross-platform installer for Hubble Network developer boards. Flash Nordic and S
 
 - [ ] **Add GPG signing for binaries** to verify origin (note: GPG verification code itself can be removed in supply chain attack, so binaries should be self-verified via code signing)
 - [ ] **More secure API token handling** - currently passed as CLI argument (visible in process list); consider file descriptor or stdin approach
-- [ ] **Linux implementation** - use apt/yum for package management, install uv via pip/curl, and segger-jlink from official packages
-- [ ] **Windows implementation** - use Chocolatey or Scoop for package management, install uv and segger-jlink, handle Windows-specific paths and permissions
 
 ## Quick Start
 
-### One-Line Install (macOS/Linux)
+### One-Line Install
+
+**All Platforms:**
 
 ```bash
-curl -fsSL https://hubble.com/install.sh | bash
+# macOS/Linux
+curl -fsSL https://get.hubble.com | bash
+
+# Windows (PowerShell as Administrator)
+iex (irm https://get.hubble.com)
 ```
 
-This will:
+The installer will:
 1. Detect your OS and architecture automatically
 2. Download the appropriate binary
 3. Run the installer immediately
 4. Clean up after completion
+
+> **Note for Windows users:** You must run PowerShell as Administrator. Right-click PowerShell and select "Run as administrator".
 
 ### Environment Variables
 
@@ -98,8 +104,8 @@ chmod +x scripts/build.sh
 ## Supported Platforms
 
 - ✅ **macOS** (Intel & Apple Silicon) - Full support
-- 🚧 **Linux** - Coming soon
-- 🚧 **Windows** - Coming soon
+- ✅ **Linux** (apt, dnf, yum) - Full support
+- ✅ **Windows** (via Chocolatey) - Full support
 
 ## Supported Developer Boards
 
@@ -121,8 +127,8 @@ The installer will:
 3. 🎯 Let you select your developer board
 4. 📦 Install required dependencies:
    - **macOS**: Homebrew, uv, segger-jlink
-   - **Linux**: TBD
-   - **Windows**: TBD
+   - **Linux**: uv, segger-jlink (manual install required)
+   - **Windows**: Chocolatey, uv, nrfjprog (includes segger-jlink)
 5. ⚡ Flash your board using `pyhubbledemo`
 6. ✅ Verify the installation
 
@@ -177,9 +183,10 @@ Edit `internal/boards/boards.go` and add your board to the `AvailableBoards` sli
 
 ### Platform Support
 
-To add Linux or Windows support, implement the methods in:
-- `internal/platform/linux.go`
-- `internal/platform/windows.go`
+All three major platforms are now supported:
+- `internal/platform/darwin.go` - macOS (uses Homebrew)
+- `internal/platform/linux.go` - Linux (uses apt/dnf/yum)
+- `internal/platform/windows.go` - Windows (uses Chocolatey)
 
 ## Dependencies
 

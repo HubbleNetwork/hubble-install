@@ -11,7 +11,6 @@ const (
 // Board represents a developer board that can be flashed
 type Board struct {
 	ID          string
-	Aliases     []string // Alternative IDs that also match this board
 	Name        string
 	Description string
 	Vendor      string
@@ -49,9 +48,15 @@ var AvailableBoards = []Board{
 	},
 	{
 		ID:          "lp_em_cc2340r5",
-		Aliases:     []string{"ti_cc2340r5"},
 		Name:        "TI CC2340R5",
 		Description: "Texas Instruments CC2340R5 LaunchPad",
+		Vendor:      "Texas Instruments",
+		FlashMethod: FlashMethodUniflash,
+	},
+	{
+		ID:          "lp_em_cc2340r53",
+		Name:        "TI CC2340R53",
+		Description: "Texas Instruments CC2340R53 LaunchPad",
 		Vendor:      "Texas Instruments",
 		FlashMethod: FlashMethodUniflash,
 	},
@@ -69,16 +74,11 @@ var AvailableBoards = []Board{
 	// },
 }
 
-// GetBoard returns a board by its ID or alias
+// GetBoard returns a board by its ID
 func GetBoard(id string) (*Board, error) {
 	for _, board := range AvailableBoards {
 		if board.ID == id {
 			return &board, nil
-		}
-		for _, alias := range board.Aliases {
-			if alias == id {
-				return &board, nil
-			}
 		}
 	}
 	return nil, fmt.Errorf("board not found: %s", id)

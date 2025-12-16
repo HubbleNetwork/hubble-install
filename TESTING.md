@@ -132,20 +132,39 @@ Breakdown:
 
 ## Cross-Platform Testing
 
-### macOS (Current)
+### macOS
 ✅ Fully implemented and tested
+- Uses Homebrew for package management
+- Installs uv and segger-jlink automatically
+- Supports both Intel and Apple Silicon
 
-### Linux (Future)
-- Will need to test on Ubuntu, Debian, Fedora, Arch
-- Package managers: apt, yum, pacman
-- uv installation method may differ
-- SEGGER J-Link installation differs
+### Linux
+✅ Fully implemented and tested
+- Supports apt (Debian/Ubuntu), dnf (Fedora/RHEL 8+), yum (CentOS/RHEL)
+- Installs uv via astral.sh installer
+- SEGGER J-Link requires manual installation from segger.com
 
-### Windows (Future)
-- Will need chocolatey or scoop for package management
-- Windows Terminal vs CMD vs PowerShell
-- Different path separators
-- .exe handling
+### Windows
+✅ Fully implemented - Testing required
+- Uses Chocolatey for package management
+- Requires Administrator privileges
+- Test on: Windows 10, Windows 11, Windows Server
+- Package managers: Chocolatey (primary)
+- **Important**: Must run as Administrator ("Run as administrator")
+
+#### Windows Testing Steps:
+1. Download the Windows binary: `hubble-install-windows-amd64.exe`
+2. Right-click and select "Run as administrator"
+3. Follow the prompts
+4. Verify Chocolatey installation: `choco --version`
+5. Verify uv installation: `uv --version`
+6. Verify J-Link installation: `JLink --version`
+
+#### Windows Common Issues:
+- **"Administrator privileges required"**: Must run as Administrator
+- **"Execution Policy"**: PowerShell may block scripts; the installer handles this automatically
+- **PATH not updated**: Restart PowerShell/CMD after installation
+- **Chocolatey install fails**: Check internet connection and Windows version
 
 ## Continuous Integration
 

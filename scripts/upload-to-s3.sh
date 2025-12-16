@@ -23,6 +23,14 @@ aws s3 cp scripts/install.sh s3://${BUCKET_NAME}/install.sh \
 echo "✓ install.sh uploaded"
 echo ""
 
+# Upload install.ps1 (Windows)
+echo "📦 Uploading install.ps1..."
+aws s3 cp scripts/install.ps1 s3://${BUCKET_NAME}/install.ps1 \
+  --content-type "text/plain" \
+  --cache-control "max-age=300"
+echo "✓ install.ps1 uploaded"
+echo ""
+
 # Upload binaries
 echo "📦 Uploading binaries..."
 for binary in ${BIN_DIR}/*; do
@@ -41,8 +49,9 @@ echo "✅ Upload complete!"
 echo ""
 echo "🌍 Public URLs:"
 echo ""
-echo "  Installer script:"
-echo "    https://${BUCKET_NAME}.s3.amazonaws.com/install.sh"
+echo "  Installer scripts:"
+echo "    macOS/Linux: https://${BUCKET_NAME}.s3.amazonaws.com/install.sh"
+echo "    Windows:     https://${BUCKET_NAME}.s3.amazonaws.com/install.ps1"
 echo ""
 echo "  Binaries:"
 for binary in ${BIN_DIR}/*; do
@@ -51,6 +60,9 @@ for binary in ${BIN_DIR}/*; do
 done
 echo ""
 echo "Test installation:"
-echo "   curl -fsSL https://${BUCKET_NAME}.s3.amazonaws.com/install.sh | bash"
+echo "  macOS/Linux:"
+echo "    curl -fsSL https://${BUCKET_NAME}.s3.amazonaws.com/install.sh | bash"
+echo "  Windows (PowerShell as Admin):"
+echo "    iex \"& { \$(irm https://${BUCKET_NAME}.s3.amazonaws.com/install.ps1) }\""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
