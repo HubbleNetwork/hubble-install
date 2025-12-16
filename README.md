@@ -241,7 +241,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
-- 📚 Documentation: https://docs.hubble.network
+- 📚 Documentation: https://docs.hubble.com
 - 💬 GitHub Issues: https://github.com/HubbleNetwork/hubble-install/issues
 
 ---
