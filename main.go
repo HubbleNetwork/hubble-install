@@ -47,7 +47,6 @@ func main() {
 	// =========================================================================
 	currentStep := 1
 	totalSteps := 0
-	stepStart := time.Now()
 	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
 
 	cfg, preConfigured, err := config.PromptForConfig()
@@ -70,7 +69,6 @@ func main() {
 	// Step 2: Select board (if not pre-configured)
 	// =========================================================================
 	currentStep++
-	stepStart = time.Now()
 	ui.PrintStep("Selecting developer board", currentStep, totalSteps)
 
 	var selectedBoard boards.Board
@@ -111,7 +109,6 @@ func main() {
 	// Step 3: Check prerequisites (based on selected board)
 	// =========================================================================
 	currentStep++
-	stepStart = time.Now()
 	ui.PrintStep("Checking prerequisites", currentStep, totalSteps)
 
 	requiredDeps := selectedBoard.GetDependencies()
@@ -146,7 +143,6 @@ func main() {
 	// =========================================================================
 	if len(missing) > 0 {
 		currentStep++
-		stepStart = time.Now()
 		ui.PrintStep("Installing dependencies", currentStep, totalSteps)
 
 		// Check if we need to install package manager first
@@ -184,7 +180,6 @@ func main() {
 	// Final Step: Flash board or generate hex file
 	// =========================================================================
 	currentStep++
-	stepStart = time.Now()
 
 	if selectedBoard.RequiresJLink() {
 		// J-Link path: Direct flash
