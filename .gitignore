@@ -1,24 +1,11 @@
-# Binaries
-bin/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-hubble-install
-hubble-install-*
-
-# Test binary, built with `go test -c`
+# Go
 *.test
-
-# Output of the go coverage tool
 *.out
-
-# Go workspace file
 go.work
 
-# Dependency directories
-vendor/
+# OS
+.DS_Store
+Thumbs.db
 
 # IDE
 .idea/
@@ -26,8 +13,3 @@ vendor/
 *.swp
 *.swo
 *~
-
-# OS
-.DS_Store
-Thumbs.db
-
