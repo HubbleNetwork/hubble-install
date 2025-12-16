@@ -1,6 +1,6 @@
 # Makefile for Hubble Installer
 
-.PHONY: all build clean test run run-debug run-clean install deps upload-s3 help
+.PHONY: all build clean test run run-debug run-clean install uninstall deps fmt lint help
 
 # Variables
 BINARY_NAME=hubble-install
@@ -18,10 +18,6 @@ build:
 	@mkdir -p $(BUILD_DIR)
 	$(GO) build $(GOFLAGS) -o $(BINARY_NAME) .
 	@echo "✓ Build complete: ./$(BINARY_NAME)"
-
-# Build for all platforms
-build-all: clean
-	@./scripts/build.sh
 
 # Run the installer
 run:
@@ -65,10 +61,6 @@ uninstall:
 	@sudo rm -f /usr/local/bin/$(BINARY_NAME)
 	@echo "✓ Uninstalled"
 
-# Upload to S3
-upload-s3:
-	@./scripts/upload-to-s3.sh
-
 # Format code
 fmt:
 	@echo "Formatting code..."
@@ -89,7 +81,6 @@ help:
 	@echo "Targets:"
 	@echo "  all              - Clean, download deps, and build (default)"
 	@echo "  build            - Build for current platform"
-	@echo "  build-all        - Build for all platforms (macOS, Linux, Windows)"
 	@echo "  run              - Run the installer directly"
 	@echo "  run-debug        - Run with debug mode (-debug flag)"
 	@echo "  run-clean        - Run clean mode (removes deps with verbose output and exits)"
@@ -98,7 +89,6 @@ help:
 	@echo "  clean            - Remove build artifacts"
 	@echo "  install          - Install to /usr/local/bin (requires sudo)"
 	@echo "  uninstall        - Remove from /usr/local/bin (requires sudo)"
-	@echo "  upload-s3        - Upload install.sh and binaries to S3"
 	@echo "  fmt              - Format Go code"
 	@echo "  lint             - Lint Go code (requires golangci-lint)"
 	@echo "  help             - Show this help message"
@@ -107,6 +97,5 @@ help:
 	@echo "  make build               # Build for current platform"
 	@echo "  make run                 # Run the installer"
 	@echo "  make run-clean           # Remove dependencies (verbose)"
-	@echo "  make build-all           # Build for all platforms"
 	@echo "  make VERSION=0.2.0 build # Build with custom version"
 
