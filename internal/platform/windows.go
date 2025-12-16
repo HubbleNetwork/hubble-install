@@ -35,11 +35,6 @@ func (w *WindowsInstaller) InstallDependencies(deps []string) error {
 	return fmt.Errorf("windows platform not yet implemented")
 }
 
-// CleanDependencies is not implemented for Windows yet
-func (w *WindowsInstaller) CleanDependencies() error {
-	return fmt.Errorf("windows platform not yet implemented")
-}
-
 // FlashBoard is not implemented for Windows yet
 func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board, deviceName string) (*FlashResult, error) {
 	return nil, fmt.Errorf("windows platform not yet implemented")
