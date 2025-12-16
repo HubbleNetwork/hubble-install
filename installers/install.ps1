@@ -1,7 +1,7 @@
 # Hubble Network Installer Download and Run Script for Windows
 # Usage: 
-#   With credentials: iex "& { $(irm https://hubble.com/install.ps1) } <base64-credentials>"
-#   Without credentials: iex "& { $(irm https://hubble.com/install.ps1) }"
+#   With credentials: iex "& { $(irm https://get.hubble.com) } <base64-credentials>"
+#   Without credentials: iex "& { $(irm https://get.hubble.com) }"
 
 param(
     [string]$Credentials = ""
@@ -48,7 +48,7 @@ if ($Credentials) {
     }
 }
 
-$InstallUrl = "https://hubble-install.s3.amazonaws.com"
+$InstallUrl = "https://github.com/HubbleNetwork/hubble-install/releases/latest/download"
 $BinaryName = "hubble-install-windows-amd64.exe"
 
 Write-Host "🛰️  Hubble Network Installer" -ForegroundColor Cyan
@@ -64,25 +64,78 @@ if ($Arch -ne "amd64") {
     exit 1
 }
 
-$DownloadUrl = "$InstallUrl/$BinaryName"
-
 Write-Host "✓ Detected platform: Windows/$Arch" -ForegroundColor Green
 Write-Host "📥 Downloading installer..." -ForegroundColor Cyan
 Write-Host ""
 
-# Download the binary to temp location
-$TempFile = [System.IO.Path]::GetTempFileName() + ".exe"
+# Create temp directory
+$TempDir = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), [System.IO.Path]::GetRandomFileName())
+New-Item -ItemType Directory -Path $TempDir | Out-Null
+
+$TempBinary = Join-Path $TempDir $BinaryName
+$TempChecksums = Join-Path $TempDir "checksums.txt"
+
+$BinaryUrl = "$InstallUrl/$BinaryName"
+$ChecksumUrl = "$InstallUrl/checksums.txt"
 
 try {
     # Use TLS 1.2 for secure connection
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     
-    # Download with progress
+    # Download the binary
     $ProgressPreference = 'SilentlyContinue'
-    Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempFile -UseBasicParsing
+    try {
+        Invoke-WebRequest -Uri $BinaryUrl -OutFile $TempBinary -UseBasicParsing
+        Write-Host "✓ Binary downloaded" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Download failed from GitHub Releases" -ForegroundColor Red
+        Write-Host "   URL: $BinaryUrl"
+        exit 1
+    }
+    
+    # Download checksums
+    try {
+        Invoke-WebRequest -Uri $ChecksumUrl -OutFile $TempChecksums -UseBasicParsing
+        Write-Host "✓ Checksums downloaded" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Failed to download checksums" -ForegroundColor Red
+        exit 1
+    }
+    
     $ProgressPreference = 'Continue'
     
-    Write-Host "✓ Download complete!" -ForegroundColor Green
+    # Verify checksum
+    Write-Host "🔒 Verifying checksum..." -ForegroundColor Cyan
+    
+    # Calculate SHA256 hash of downloaded binary
+    $Hash = Get-FileHash -Path $TempBinary -Algorithm SHA256
+    $CalculatedHash = $Hash.Hash.ToLower()
+    
+    # Read checksums file and find our binary's expected hash
+    $ChecksumsContent = Get-Content $TempChecksums
+    $ExpectedHash = $null
+    foreach ($Line in $ChecksumsContent) {
+        if ($Line -match "^([a-f0-9]+)\s+$BinaryName") {
+            $ExpectedHash = $Matches[1].ToLower()
+            break
+        }
+    }
+    
+    if (-not $ExpectedHash) {
+        Write-Host "❌ Checksum not found for $BinaryName" -ForegroundColor Red
+        exit 1
+    }
+    
+    if ($CalculatedHash -ne $ExpectedHash) {
+        Write-Host "❌ Checksum verification failed!" -ForegroundColor Red
+        Write-Host "   This could indicate a corrupted download or security issue."
+        Write-Host "   Expected: $ExpectedHash"
+        Write-Host "   Got:      $CalculatedHash"
+        exit 1
+    }
+    
+    Write-Host "✓ Checksum verified" -ForegroundColor Green
+    Write-Host ""
     Write-Host "🚀 Running installer..." -ForegroundColor Cyan
     Write-Host ""
     
@@ -97,22 +150,18 @@ try {
         Write-Host ""
         
         # Restart with admin privileges
-        $Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$TempFile`" --debug"
-        Start-Process -FilePath $TempFile -ArgumentList "--debug" -Verb RunAs -Wait
+        Start-Process -FilePath $TempBinary -Verb RunAs -Wait
     } else {
         # Run the installer directly
-        & $TempFile --debug
+        & $TempBinary
     }
     
 } catch {
-    Write-Host "❌ Download or execution failed: $_" -ForegroundColor Red
+    Write-Host "❌ Installation failed: $_" -ForegroundColor Red
     exit 1
 } finally {
     # Clean up
-    if (Test-Path $TempFile) {
-        Remove-Item $TempFile -Force -ErrorAction SilentlyContinue
+    if (Test-Path $TempDir) {
+        Remove-Item $TempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
-
-Write-Host ""
-Write-Host "Installation complete!" -ForegroundColor Green

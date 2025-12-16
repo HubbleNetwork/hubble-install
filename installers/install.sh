@@ -1,8 +1,8 @@
 #!/bin/bash
 # Hubble Network Installer Download and Run Script
 # Usage: 
-#   With credentials: curl -fsSL https://hubble.com/install.sh | bash -s <base64-credentials>
-#   Without credentials: curl -fsSL https://hubble.com/install.sh | bash
+#   With credentials: curl -fsSL https://get.hubble.com | bash -s <base64-credentials>
+#   Without credentials: curl -fsSL https://get.hubble.com | bash
 
 set -e
 
@@ -43,7 +43,7 @@ if [ -n "$1" ]; then
     fi
 fi
 
-INSTALL_URL="https://hubble-install.s3.amazonaws.com"
+GITHUB_REPO="HubbleNetwork/hubble-install"
 BINARY_NAME="hubble-install"
 
 echo "🛰️  Hubble Network Installer"
@@ -89,22 +89,49 @@ if [ "$OS" = "windows" ]; then
     DOWNLOAD_FILE="hubble-install-${OS}-${ARCH}.exe"
 fi
 
-DOWNLOAD_URL="${INSTALL_URL}/${DOWNLOAD_FILE}"
-
 echo "✓ Detected platform: ${OS}/${ARCH}"
-echo "📥 Downloading installer..."
 echo ""
 
-# Download the binary to temp location
-TEMP_FILE=$(mktemp)
+# Determine download URLs
+# Try to get latest release version from GitHub API
 if command -v curl > /dev/null 2>&1; then
-    if ! curl -fsSL "${DOWNLOAD_URL}" -o "${TEMP_FILE}"; then
-        echo "❌ Download failed from S3"
+    LATEST_RELEASE=$(curl -sL https://api.github.com/repos/${GITHUB_REPO}/releases/latest 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || echo "")
+else
+    LATEST_RELEASE=""
+fi
+
+if [ -z "$LATEST_RELEASE" ]; then
+    # Fallback to latest download URL (no specific version)
+    BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${DOWNLOAD_FILE}"
+    CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/checksums.txt"
+    echo "📥 Downloading latest installer..."
+else
+    # Use specific version
+    BINARY_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_RELEASE}/${DOWNLOAD_FILE}"
+    CHECKSUM_URL="https://github.com/${GITHUB_REPO}/releases/download/${LATEST_RELEASE}/checksums.txt"
+    echo "📥 Downloading installer ${LATEST_RELEASE}..."
+fi
+
+echo ""
+
+# Create temp directory for downloads
+TEMP_DIR=$(mktemp -d)
+trap "rm -rf ${TEMP_DIR}" EXIT
+
+TEMP_BINARY="${TEMP_DIR}/${DOWNLOAD_FILE}"
+TEMP_CHECKSUMS="${TEMP_DIR}/checksums.txt"
+
+# Download the binary
+if command -v curl > /dev/null 2>&1; then
+    if ! curl -fsSL "${BINARY_URL}" -o "${TEMP_BINARY}"; then
+        echo "❌ Download failed from GitHub Releases"
+        echo "   URL: ${BINARY_URL}"
         exit 1
     fi
 elif command -v wget > /dev/null 2>&1; then
-    if ! wget -q "${DOWNLOAD_URL}" -O "${TEMP_FILE}"; then
-        echo "❌ Download failed from S3"
+    if ! wget -q "${BINARY_URL}" -O "${TEMP_BINARY}"; then
+        echo "❌ Download failed from GitHub Releases"
+        echo "   URL: ${BINARY_URL}"
         exit 1
     fi
 else
@@ -112,16 +139,57 @@ else
     exit 1
 fi
 
-# Make it executable
-chmod +x "${TEMP_FILE}"
+echo "✓ Binary downloaded"
 
-echo "✓ Download complete!"
+# Download checksums
+if command -v curl > /dev/null 2>&1; then
+    if ! curl -fsSL "${CHECKSUM_URL}" -o "${TEMP_CHECKSUMS}"; then
+        echo "❌ Failed to download checksums"
+        exit 1
+    fi
+elif command -v wget > /dev/null 2>&1; then
+    if ! wget -q "${CHECKSUM_URL}" -O "${TEMP_CHECKSUMS}"; then
+        echo "❌ Failed to download checksums"
+        exit 1
+    fi
+fi
+
+echo "✓ Checksums downloaded"
+
+# Verify checksum
+echo "🔒 Verifying checksum..."
+
+# Change to temp directory for checksum verification
+cd "${TEMP_DIR}"
+
+# Use shasum (macOS/BSD) or sha256sum (Linux)
+if command -v shasum > /dev/null 2>&1; then
+    if ! shasum -a 256 -c checksums.txt --ignore-missing --quiet 2>/dev/null; then
+        echo "❌ Checksum verification failed!"
+        echo "   This could indicate a corrupted download or security issue."
+        exit 1
+    fi
+elif command -v sha256sum > /dev/null 2>&1; then
+    if ! sha256sum -c checksums.txt --ignore-missing --quiet 2>/dev/null; then
+        echo "❌ Checksum verification failed!"
+        echo "   This could indicate a corrupted download or security issue."
+        exit 1
+    fi
+else
+    echo "⚠️  Warning: Neither shasum nor sha256sum found. Skipping checksum verification."
+    echo "   Install shasum or sha256sum for secure downloads."
+fi
+
+echo "✓ Checksum verified"
+echo ""
+
+# Make it executable
+chmod +x "${TEMP_BINARY}"
+
 echo "🚀 Running installer..."
 echo ""
 
-# Run the installer directly from temp location with debug flag
-"${TEMP_FILE}" --debug
+# Run the installer directly from temp location
+"${TEMP_BINARY}"
 
-# Clean up
-rm -f "${TEMP_FILE}"
-
+# Temp directory and files will be cleaned up by trap on exit
