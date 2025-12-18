@@ -240,6 +240,16 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board, deviceName stri
 		return nil, fmt.Errorf("command failed: %w", err)
 	}
 
+	// Verify the hex file was created at the expected location
+	if _, err := os.Stat(hexFilePath); err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("hex file was not created at expected location: %s\n"+
+				"The pyhubbledemo tool may not support the -f flag properly.\n"+
+				"Please check if a hex file was created in a temporary location", hexFilePath)
+		}
+		return nil, fmt.Errorf("error checking hex file: %w", err)
+	}
+
 	return &FlashResult{HexFilePath: hexFilePath}, nil
 }
 

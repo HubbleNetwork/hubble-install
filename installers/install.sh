@@ -118,6 +118,9 @@ echo ""
 TEMP_DIR=$(mktemp -d)
 trap "rm -rf ${TEMP_DIR}" EXIT
 
+# Save the original working directory
+ORIGINAL_DIR=$(pwd)
+
 TEMP_BINARY="${TEMP_DIR}/${DOWNLOAD_FILE}"
 TEMP_CHECKSUMS="${TEMP_DIR}/checksums.txt"
 
@@ -186,10 +189,13 @@ echo ""
 # Make it executable
 chmod +x "${TEMP_BINARY}"
 
+# Change back to the original directory before running the installer
+cd "${ORIGINAL_DIR}"
+
 echo "🚀 Running installer..."
 echo ""
 
-# Run the installer directly from temp location
+# Run the installer from the user's original working directory
 "${TEMP_BINARY}"
 
 # Temp directory and files will be cleaned up by trap on exit
