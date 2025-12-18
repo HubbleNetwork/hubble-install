@@ -179,16 +179,8 @@ func (d *DarwinInstaller) InstallDependencies(deps []string) error {
 					ui.PrintSuccess("nrfutil already installed")
 					return
 				}
-				uvPath, err := exec.LookPath("uv")
-				if err != nil {
-					errChan <- fmt.Errorf("uv not found in PATH (required to install nrfutil): %w", err)
-					return
-				}
-				ui.PrintInfo("Installing nrfutil (via uv tool install)...")
-				cmd := exec.Command(uvPath, "tool", "install", "nrfutil")
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-				if err := cmd.Run(); err != nil {
+				ui.PrintInfo("Installing nrfutil (via Homebrew)...")
+				if err := d.runBrewInstall("nrfutil", false); err != nil {
 					errChan <- fmt.Errorf("failed to install nrfutil: %w", err)
 					return
 				}
