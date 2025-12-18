@@ -72,6 +72,9 @@ Write-Host ""
 $TempDir = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), [System.IO.Path]::GetRandomFileName())
 New-Item -ItemType Directory -Path $TempDir | Out-Null
 
+# Save the original working directory
+$OriginalDir = Get-Location
+
 $TempBinary = Join-Path $TempDir $BinaryName
 $TempChecksums = Join-Path $TempDir "checksums.txt"
 
@@ -149,10 +152,10 @@ try {
         Write-Host "Please accept the UAC prompt to continue."
         Write-Host ""
         
-        # Restart with admin privileges
-        Start-Process -FilePath $TempBinary -Verb RunAs -Wait
+        # Restart with admin privileges, preserving the original working directory
+        Start-Process -FilePath $TempBinary -Verb RunAs -WorkingDirectory $OriginalDir -Wait
     } else {
-        # Run the installer directly
+        # Run the installer directly from the original working directory
         & $TempBinary
     }
     
