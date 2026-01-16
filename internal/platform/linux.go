@@ -187,7 +187,10 @@ func (l *LinuxInstaller) installNRFUtil() error {
 	}
 
 	// Ensure ~/.local/bin is on PATH (where uv installs tools)
-	homeDir := os.Getenv("HOME")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
 	localBin := filepath.Join(homeDir, ".local", "bin")
 	currentPath := os.Getenv("PATH")
 	if !strings.Contains(currentPath, localBin) {
@@ -211,7 +214,10 @@ func (l *LinuxInstaller) installUV() error {
 
 	// Add uv to PATH for current process
 	// The installer puts it in ~/.cargo/bin
-	homeDir := os.Getenv("HOME")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("failed to get home directory: %w", err)
+	}
 	cargoPath := filepath.Join(homeDir, ".cargo", "bin")
 
 	currentPath := os.Getenv("PATH")
