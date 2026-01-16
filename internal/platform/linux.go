@@ -151,19 +151,10 @@ func (l *LinuxInstaller) InstallDependencies(deps []string) error {
 				ui.PrintSuccess("nrfutil already installed")
 				break
 			}
-			if err := l.ensurePythonAndPip(); err != nil {
-				return err
-			}
 
-			ui.PrintInfo("Installing nrfutil (via pip)...")
-			cmd := exec.Command("python3", "-m", "pip", "install", "--user", "--upgrade", "nrfutil")
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			if err := cmd.Run(); err != nil {
+			ui.PrintInfo("Installing nrfutil (via uv)...")
+			if err := l.installNRFUtil(); err != nil {
 				return fmt.Errorf("failed to install nrfutil: %w", err)
-			}
-			if err := l.ensurePythonUserBinOnPath(); err != nil {
-				return err
 			}
 			if !l.commandExists("nrfutil") {
 				return fmt.Errorf("nrfutil installation completed but nrfutil command not found in PATH; try restarting your terminal")
@@ -180,48 +171,27 @@ func (l *LinuxInstaller) InstallDependencies(deps []string) error {
 	return nil
 }
 
-func (l *LinuxInstaller) pipAvailable() bool {
-	cmd := exec.Command("python3", "-m", "pip", "--version")
-	return cmd.Run() == nil
-}
-
-func (l *LinuxInstaller) ensurePythonAndPip() error {
-	// Ensure sudo once up-front
-	if err := l.ensureSudoAccess(); err != nil {
-		return err
-	}
-
-	if !l.commandExists("python3") {
-		ui.PrintInfo("Installing python3...")
-		if err := l.installPackage("python3", true); err != nil {
-			return fmt.Errorf("failed to install python3: %w", err)
-		}
-	}
-
-	if !l.pipAvailable() {
-		ui.PrintInfo("Installing python3-pip...")
-		if err := l.installPackage("python3-pip", true); err != nil {
-			return fmt.Errorf("failed to install python3-pip: %w", err)
-		}
-	}
-
-	return nil
-}
-
-func (l *LinuxInstaller) ensurePythonUserBinOnPath() error {
-	out, err := exec.Command("python3", "-m", "site", "--user-base").CombinedOutput()
+// installNRFUtil installs nrfutil using uv tool install
+func (l *LinuxInstaller) installNRFUtil() error {
+	uvPath, err := exec.LookPath("uv")
 	if err != nil {
-		return fmt.Errorf("failed to locate python user base directory: %w", err)
-	}
-	userBase := strings.TrimSpace(string(out))
-	if userBase == "" {
-		return fmt.Errorf("python user base directory was empty")
+		return fmt.Errorf("uv not found in PATH - please install uv first: %w", err)
 	}
 
-	userBin := filepath.Join(userBase, "bin")
+	cmd := exec.Command(uvPath, "tool", "install", "nrfutil")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("uv tool install nrfutil failed: %w", err)
+	}
+
+	// Ensure ~/.local/bin is on PATH (where uv installs tools)
+	homeDir := os.Getenv("HOME")
+	localBin := filepath.Join(homeDir, ".local", "bin")
 	currentPath := os.Getenv("PATH")
-	if !strings.Contains(currentPath, userBin) {
-		os.Setenv("PATH", userBin+":"+currentPath)
+	if !strings.Contains(currentPath, localBin) {
+		os.Setenv("PATH", localBin+":"+currentPath)
 	}
 
 	return nil
