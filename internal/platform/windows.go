@@ -131,14 +131,6 @@ func (w *WindowsInstaller) CheckPrerequisites(requiredDeps []string) ([]MissingD
 					Status: "Not installed",
 				})
 			}
-		case "nrfutil":
-			// Check for Nordic nrfutil (preferred over nrfjprog/J-Link installer)
-			if !w.nrfutilInstalled() {
-				missing = append(missing, MissingDependency{
-					Name:   "nrfutil",
-					Status: "Not installed",
-				})
-			}
 		}
 	}
 
@@ -359,17 +351,6 @@ func (w *WindowsInstaller) InstallDependencies(deps []string) error {
 				ui.PrintSuccess("uv installed successfully")
 			}
 
-		case "nrfutil":
-			if w.nrfutilInstalled() {
-				ui.PrintSuccess("nrfutil already installed")
-				break
-			}
-
-			ui.PrintInfo("Installing Nordic nrfutil (standalone binary)...")
-			if err := w.installNRFUtil(); err != nil {
-				return fmt.Errorf("failed to install nrfutil: %w", err)
-			}
-			ui.PrintSuccess("nrfutil installed successfully")
 		}
 	}
 
@@ -692,59 +673,6 @@ func (w *WindowsInstaller) setupUVPath() error {
 	currentPath := os.Getenv("PATH")
 	if !strings.Contains(currentPath, chocoBin) {
 		os.Setenv("PATH", chocoBin+";"+currentPath)
-	}
-
-	return nil
-}
-
-// nrfutilInstalled checks for nrfutil on PATH or the default install location
-func (w *WindowsInstaller) nrfutilInstalled() bool {
-	if w.commandExists("nrfutil") {
-		return true
-	}
-
-	defaultPath := filepath.Join(os.Getenv("LOCALAPPDATA"), "hubble", "nrfutil", "nrfutil.exe")
-	if _, err := os.Stat(defaultPath); err == nil {
-		_ = w.ensureNRFUtilPath()
-		return true
-	}
-
-	return false
-}
-
-// ensureNRFUtilPath adds the default nrfutil install location to PATH for this process
-func (w *WindowsInstaller) ensureNRFUtilPath() error {
-	defaultDir := filepath.Join(os.Getenv("LOCALAPPDATA"), "hubble", "nrfutil")
-	currentPath := os.Getenv("PATH")
-	if !strings.Contains(strings.ToLower(currentPath), strings.ToLower(defaultDir)) {
-		os.Setenv("PATH", defaultDir+";"+currentPath)
-	}
-	return nil
-}
-
-// installNRFUtil downloads the official nrfutil binary and ensures it's available
-func (w *WindowsInstaller) installNRFUtil() error {
-	url := "https://developer.nordicsemi.com/.pc-tools/nrfutil/x64-win/nrfutil.exe"
-	destDir := filepath.Join(os.Getenv("LOCALAPPDATA"), "hubble", "nrfutil")
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return fmt.Errorf("failed to create nrfutil directory: %w", err)
-	}
-
-	destPath := filepath.Join(destDir, "nrfutil.exe")
-
-	if err := w.downloadFile(url, destPath); err != nil {
-		return fmt.Errorf("failed to download nrfutil: %w", err)
-	}
-
-	// Add to PATH for current process
-	if err := w.ensureNRFUtilPath(); err != nil {
-		return err
-	}
-
-	// Verify it runs
-	cmd := exec.Command(destPath, "--version")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("nrfutil download completed but binary did not run: %w", err)
 	}
 
 	return nil

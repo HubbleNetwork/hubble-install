@@ -26,10 +26,9 @@ func (b *Board) RequiresJLink() bool {
 func (b *Board) GetDependencies() []string {
 	if b.RequiresJLink() {
 		// Nordic DKs use a J-Link probe (often on-board). We need:
-		// - uv: to run our Python flashing tool
-		// - nrfutil: Nordic CLI used by the flashing tool
-		// - segger-jlink: provides J-Link drivers/DLLs needed to talk to the probe
-		return []string{"uv", "nrfutil", "segger-jlink"}
+		// - uv: to run our Python flashing tool (pyhubbledemo)
+		// - segger-jlink: provides J-Link drivers/DLLs that pylink-square uses
+		return []string{"uv", "segger-jlink"}
 	}
 	return []string{"uv"}
 }

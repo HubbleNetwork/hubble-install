@@ -86,13 +86,6 @@ func (l *LinuxInstaller) CheckPrerequisites(requiredDeps []string) ([]MissingDep
 					Status: "Not installed",
 				})
 			}
-		case "nrfutil":
-			if !l.commandExists("nrfutil") {
-				missing = append(missing, MissingDependency{
-					Name:   "nrfutil",
-					Status: "Not installed",
-				})
-			}
 		case "segger-jlink":
 			// Check for SEGGER J-Link (must be installed manually on Linux)
 			if !l.commandExists("JLinkExe") {
@@ -146,55 +139,12 @@ func (l *LinuxInstaller) InstallDependencies(deps []string) error {
 			} else {
 				ui.PrintSuccess("uv already installed")
 			}
-		case "nrfutil":
-			if l.commandExists("nrfutil") {
-				ui.PrintSuccess("nrfutil already installed")
-				break
-			}
-
-			ui.PrintInfo("Installing nrfutil (via uv)...")
-			if err := l.installNRFUtil(); err != nil {
-				return fmt.Errorf("failed to install nrfutil: %w", err)
-			}
-			if !l.commandExists("nrfutil") {
-				return fmt.Errorf("nrfutil installation completed but nrfutil command not found in PATH; try restarting your terminal")
-			}
-			ui.PrintSuccess("nrfutil installed successfully")
 		case "segger-jlink":
 			// J-Link must be installed manually on Linux - verified in CheckPrerequisites
 			if l.commandExists("JLinkExe") {
 				ui.PrintSuccess("segger-jlink already installed")
 			}
 		}
-	}
-
-	return nil
-}
-
-// installNRFUtil installs nrfutil using uv tool install
-func (l *LinuxInstaller) installNRFUtil() error {
-	uvPath, err := exec.LookPath("uv")
-	if err != nil {
-		return fmt.Errorf("uv not found in PATH - please install uv first: %w", err)
-	}
-
-	cmd := exec.Command(uvPath, "tool", "install", "nrfutil")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("uv tool install nrfutil failed: %w", err)
-	}
-
-	// Ensure ~/.local/bin is on PATH (where uv installs tools)
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
-	}
-	localBin := filepath.Join(homeDir, ".local", "bin")
-	currentPath := os.Getenv("PATH")
-	if !strings.Contains(currentPath, localBin) {
-		os.Setenv("PATH", localBin+":"+currentPath)
 	}
 
 	return nil
