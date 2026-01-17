@@ -75,13 +75,6 @@ func (d *DarwinInstaller) CheckPrerequisites(requiredDeps []string) ([]MissingDe
 					Status: "Not installed",
 				})
 			}
-		case "nrfutil":
-			if !d.commandExists("nrfutil") {
-				missing = append(missing, MissingDependency{
-					Name:   "nrfutil",
-					Status: "Not installed",
-				})
-			}
 		case "segger-jlink":
 			if !d.commandExists("JLinkExe") {
 				missing = append(missing, MissingDependency{
@@ -173,18 +166,6 @@ func (d *DarwinInstaller) InstallDependencies(deps []string) error {
 					return
 				}
 				ui.PrintSuccess("uv installed successfully")
-
-			case "nrfutil":
-				if d.commandExists("nrfutil") {
-					ui.PrintSuccess("nrfutil already installed")
-					return
-				}
-				ui.PrintInfo("Installing nrfutil (via Homebrew)...")
-				if err := d.runBrewInstall("nrfutil", false); err != nil {
-					errChan <- fmt.Errorf("failed to install nrfutil: %w", err)
-					return
-				}
-				ui.PrintSuccess("nrfutil installed successfully")
 
 			case "segger-jlink":
 				if d.commandExists("JLinkExe") {
