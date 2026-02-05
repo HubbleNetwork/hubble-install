@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -10,9 +11,187 @@ import (
 	"github.com/HubbleNetwork/hubble-install/internal/config"
 	"github.com/HubbleNetwork/hubble-install/internal/platform"
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
+	"github.com/rudderlabs/analytics-go/v4"
 )
 
+// Analytics configuration
+//
+// These metrics are completely anonymous (UserId is always "anonymous") and are used
+// solely for quality assurance and bug tracking. We track:
+// - Which step users reach in the installer flow
+// - Error messages when installations fail
+// - Platform/architecture distribution
+// - Installation success rates and duration
+//
+// No personally identifiable information is collected.
+//
+// Users can opt out of analytics by:
+// - Setting environment variable: HUBBLE_NO_ANALYTICS=1
+// - Adding a=false to the install URL query string
+const (
+	rudderWriteKey  = "39Ge5rWJeNuA7s0HRg7jZEdyScj"
+	rudderDataPlane = "https://hubblejohsbrmt.dataplane.rudderstack.com"
+)
+
+// analyticsEnabled checks if analytics should be enabled
+// Users can opt out via HUBBLE_NO_ANALYTICS env var or a=false argument
+func analyticsEnabled() bool {
+	// Check environment variable
+	if os.Getenv("HUBBLE_NO_ANALYTICS") != "" {
+		return false
+	}
+
+	// Check command line arguments for a=false (opt-out) or a=true (opt-in)
+	for _, arg := range os.Args[1:] {
+		if arg == "a=false" || arg == "--no-analytics" {
+			return false
+		}
+	}
+
+	return true
+}
+
+// Analytics event names
+const (
+	eventStart   = "hubble-install-start"
+	eventStep    = "hubble-install-step"
+	eventError   = "hubble-install-error"
+	eventSuccess = "hubble-install-success"
+)
+
+// analyticsClient wraps the Rudderstack client for tracking
+type analyticsClient struct {
+	client   analytics.Client
+	platform string
+	arch     string
+	enabled  bool
+}
+
+// newAnalyticsClient creates a new analytics client (or a no-op client if disabled)
+func newAnalyticsClient() *analyticsClient {
+	enabled := analyticsEnabled()
+	var client analytics.Client
+	if enabled {
+		client = analytics.New(rudderWriteKey, rudderDataPlane)
+	}
+	return &analyticsClient{
+		client:   client,
+		platform: runtime.GOOS,
+		arch:     runtime.GOARCH,
+		enabled:  enabled,
+	}
+}
+
+// Close flushes and closes the analytics client
+func (a *analyticsClient) Close() {
+	if a.enabled && a.client != nil {
+		a.client.Close()
+	}
+}
+
+// baseProperties returns common properties for all events
+func (a *analyticsClient) baseProperties() analytics.Properties {
+	return analytics.NewProperties().
+		Set("platform", a.platform).
+		Set("arch", a.arch)
+}
+
+// TrackStart tracks the installer start event
+func (a *analyticsClient) TrackStart() {
+	if !a.enabled {
+		return
+	}
+	a.client.Enqueue(analytics.Track{
+		UserId:     "anonymous",
+		Event:      eventStart,
+		Properties: a.baseProperties(),
+	})
+}
+
+// TrackStep tracks a step event
+func (a *analyticsClient) TrackStep(step int, stepName string) {
+	if !a.enabled {
+		return
+	}
+	a.client.Enqueue(analytics.Track{
+		UserId: "anonymous",
+		Event:  eventStep,
+		Properties: a.baseProperties().
+			Set("step", step).
+			Set("step_name", stepName),
+	})
+}
+
+// TrackError tracks an error event
+func (a *analyticsClient) TrackError(step int, stepName string, errMsg string) {
+	if !a.enabled {
+		return
+	}
+	// Sanitize error message to remove potential PII (home directory paths)
+	sanitizedErr := sanitizeErrorMessage(errMsg)
+	a.client.Enqueue(analytics.Track{
+		UserId: "anonymous",
+		Event:  eventError,
+		Properties: a.baseProperties().
+			Set("step", step).
+			Set("step_name", stepName).
+			Set("error", sanitizedErr),
+	})
+}
+
+// sanitizeErrorMessage removes potential PII from error messages
+func sanitizeErrorMessage(errMsg string) string {
+	// Replace home directory paths with ~
+	homeDir, err := os.UserHomeDir()
+	if err == nil && homeDir != "" {
+		errMsg = strings.ReplaceAll(errMsg, homeDir, "~")
+	}
+	// Also handle common patterns like /Users/<username> or /home/<username>
+	// by replacing anything that looks like a home path
+	if idx := strings.Index(errMsg, "/Users/"); idx != -1 {
+		end := strings.IndexAny(errMsg[idx+7:], "/ ")
+		if end != -1 {
+			errMsg = errMsg[:idx] + "~" + errMsg[idx+7+end:]
+		}
+	}
+	if idx := strings.Index(errMsg, "/home/"); idx != -1 {
+		end := strings.IndexAny(errMsg[idx+6:], "/ ")
+		if end != -1 {
+			errMsg = errMsg[:idx] + "~" + errMsg[idx+6+end:]
+		}
+	}
+	return errMsg
+}
+
+// TrackSuccess tracks a successful completion
+func (a *analyticsClient) TrackSuccess(durationSecs float64, board string) {
+	if !a.enabled {
+		return
+	}
+	a.client.Enqueue(analytics.Track{
+		UserId: "anonymous",
+		Event:  eventSuccess,
+		Properties: a.baseProperties().
+			Set("duration_seconds", durationSecs).
+			Set("board", board),
+	})
+}
+
 func main() {
+	// Initialize analytics
+	tracker := newAnalyticsClient()
+	defer tracker.Close()
+
+	// Track installer start
+	tracker.TrackStart()
+
+	// Helper to exit with error tracking
+	exitWithError := func(step int, stepName string, errMsg string, code int) {
+		tracker.TrackError(step, stepName, errMsg)
+		tracker.Close()
+		os.Exit(code)
+	}
+
 	// Print welcome banner
 	ui.PrintBanner()
 	fmt.Println()
@@ -29,6 +208,8 @@ func main() {
 	// Prompt user to continue
 	if !ui.PromptYesNo("Ready to install?", true) {
 		ui.PrintWarning("Installation cancelled")
+		tracker.TrackError(0, "welcome", "user_cancelled")
+		tracker.Close()
 		os.Exit(0)
 	}
 	fmt.Println()
@@ -40,7 +221,7 @@ func main() {
 	installer, err := platform.GetInstaller()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Platform detection failed: %v", err))
-		os.Exit(1)
+		exitWithError(0, "platform_detection", err.Error(), 1)
 	}
 
 	// Check for pending reboot (especially important on Windows)
@@ -55,7 +236,7 @@ func main() {
 		fmt.Println()
 		ui.PrintInfo("Please reboot your computer and run this installer again.")
 		fmt.Println()
-		os.Exit(2)
+		exitWithError(0, "reboot_check", "reboot_required", 2)
 	}
 
 	// =========================================================================
@@ -63,12 +244,14 @@ func main() {
 	// =========================================================================
 	currentStep := 1
 	totalSteps := 0
+	stepName := "credentials"
+	tracker.TrackStep(currentStep, stepName)
 	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
 
 	cfg, preConfigured, err := config.PromptForConfig()
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Configuration failed: %v", err))
-		os.Exit(1)
+		exitWithError(currentStep, stepName, err.Error(), 1)
 	}
 
 	if preConfigured {
@@ -85,6 +268,8 @@ func main() {
 	// Step 2: Select board (if not pre-configured)
 	// =========================================================================
 	currentStep++
+	stepName = "board_selection"
+	tracker.TrackStep(currentStep, stepName)
 	ui.PrintStep("Selecting developer board", currentStep, totalSteps)
 
 	var selectedBoard boards.Board
@@ -93,7 +278,7 @@ func main() {
 		board, err := boards.GetBoard(cfg.Board)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid pre-configured board: %v", err))
-			os.Exit(1)
+			exitWithError(currentStep, stepName, err.Error(), 1)
 		}
 		selectedBoard = *board
 		ui.PrintSuccess(fmt.Sprintf("Using pre-configured board: %s", selectedBoard.Name))
@@ -125,13 +310,15 @@ func main() {
 	// Step 3: Check prerequisites (based on selected board)
 	// =========================================================================
 	currentStep++
+	stepName = "prerequisites"
+	tracker.TrackStep(currentStep, stepName)
 	ui.PrintStep("Checking prerequisites", currentStep, totalSteps)
 
 	requiredDeps := selectedBoard.GetDependencies()
 	missing, err := installer.CheckPrerequisites(requiredDeps)
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Prerequisites check failed: %v", err))
-		os.Exit(1)
+		exitWithError(currentStep, stepName, err.Error(), 1)
 	}
 
 	totalSteps = 4
@@ -148,7 +335,7 @@ func main() {
 
 		if !ui.PromptYesNo("Would you like to install missing dependencies?", true) {
 			ui.PrintError("Cannot proceed without dependencies")
-			os.Exit(1)
+			exitWithError(currentStep, stepName, "user_declined_dependencies", 1)
 		}
 	} else {
 		ui.PrintSuccess("All prerequisites satisfied")
@@ -159,6 +346,8 @@ func main() {
 	// =========================================================================
 	if len(missing) > 0 {
 		currentStep++
+		stepName = "dependencies"
+		tracker.TrackStep(currentStep, stepName)
 		ui.PrintStep("Installing dependencies", currentStep, totalSteps)
 
 		// Check if we need to install package manager first
@@ -173,7 +362,7 @@ func main() {
 		if needsPackageManager {
 			if err := installer.InstallPackageManager(); err != nil {
 				ui.PrintError(fmt.Sprintf("Package manager installation failed: %v", err))
-				os.Exit(1)
+				exitWithError(currentStep, stepName, err.Error(), 1)
 			}
 		}
 
@@ -198,10 +387,10 @@ func main() {
 				fmt.Println()
 				ui.PrintInfo("Note: If PowerShell doesn't work after reboot, use Command Prompt (cmd.exe)")
 				fmt.Println()
-				os.Exit(2) // Exit code 2 indicates reboot required
+				exitWithError(currentStep, stepName, "reboot_required", 2)
 			}
 			ui.PrintError(fmt.Sprintf("Dependency installation failed: %v", err))
-			os.Exit(1)
+			exitWithError(currentStep, stepName, err.Error(), 1)
 		}
 
 		ui.PrintSuccess("All dependencies installed")
@@ -210,19 +399,23 @@ func main() {
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		ui.PrintError(fmt.Sprintf("Invalid configuration: %v", err))
-		os.Exit(1)
+		exitWithError(currentStep, "validation", err.Error(), 1)
 	}
 
 	// =========================================================================
 	// Final Step: Flash board or generate hex file
 	// =========================================================================
 	currentStep++
+	stepName = "flash"
+	tracker.TrackStep(currentStep, stepName)
 
 	if selectedBoard.RequiresJLink() {
 		// J-Link path: Direct flash
 		if !ui.PromptYesNo(fmt.Sprintf("Would you like to flash your %s now?", selectedBoard.Name), true) {
 			ui.PrintWarning("Flashing skipped. You can flash later using:")
 			fmt.Printf("  uv tool run --from pyhubbledemo hubbledemo flash %s -o %s -t <your_token>\n", cfg.Board, cfg.OrgID)
+			tracker.TrackError(currentStep, stepName, "user_skipped_flash")
+			tracker.Close()
 			os.Exit(0)
 		}
 
@@ -233,11 +426,12 @@ func main() {
 		result, err := installer.FlashBoard(cfg.OrgID, cfg.APIToken, cfg.Board, deviceName)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Board flashing failed: %v", err))
-			os.Exit(1)
+			exitWithError(currentStep, stepName, err.Error(), 1)
 		}
 
-		// Print J-Link completion banner
+		// Track success and print J-Link completion banner
 		duration := time.Since(startTime)
+		tracker.TrackSuccess(duration.Seconds(), cfg.Board)
 		ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, result.DeviceName)
 
 	} else {
@@ -245,6 +439,8 @@ func main() {
 		if !ui.PromptYesNo(fmt.Sprintf("Would you like to generate the hex file for your %s now?", selectedBoard.Name), true) {
 			ui.PrintWarning("Hex generation skipped. You can generate later using:")
 			fmt.Printf("  uv tool run --from pyhubbledemo hubbledemo flash %s -o %s -t <your_token>\n", cfg.Board, cfg.OrgID)
+			tracker.TrackError(currentStep, stepName, "user_skipped_hex")
+			tracker.Close()
 			os.Exit(0)
 		}
 
@@ -255,11 +451,12 @@ func main() {
 		result, err := installer.GenerateHexFile(cfg.OrgID, cfg.APIToken, cfg.Board, deviceName)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Hex file generation failed: %v", err))
-			os.Exit(1)
+			exitWithError(currentStep, stepName, err.Error(), 1)
 		}
 
-		// Print Uniflash completion banner
+		// Track success and print Uniflash completion banner
 		duration := time.Since(startTime)
+		tracker.TrackSuccess(duration.Seconds(), cfg.Board)
 		ui.PrintUniflashCompletionBanner(duration, result.HexFilePath, selectedBoard.Name, deviceName)
 	}
 
