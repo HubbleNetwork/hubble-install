@@ -3,19 +3,36 @@
 # Usage: 
 #   With credentials: curl -fsSL https://get.hubble.com | bash -s <base64-credentials>
 #   Without credentials: curl -fsSL https://get.hubble.com | bash
+#   Opt-out of analytics: curl -fsSL https://get.hubble.com | bash -s <base64-credentials> a=false
 
 set -e
 
-# Accept credentials as first argument (base64 encoded org_id:api_key)
-if [ -n "$1" ]; then
+# Collect extra arguments to pass to the installer (e.g., a=false for analytics opt-out)
+EXTRA_ARGS=""
+
+# Process all arguments
+for arg in "$@"; do
+    # Check for analytics opt-out flag
+    if [ "$arg" = "a=false" ] || [ "$arg" = "--no-analytics" ]; then
+        EXTRA_ARGS="$EXTRA_ARGS $arg"
+        continue
+    fi
+    
+    # Skip if we already have credentials set
+    if [ -n "$HUBBLE_CREDENTIALS" ]; then
+        EXTRA_ARGS="$EXTRA_ARGS $arg"
+        continue
+    fi
+    
+    # Try to validate as base64 credentials
     VALIDATION_FAILED=0
     
     # Validate base64 format
-    if ! echo "$1" | base64 -d > /dev/null 2>&1; then
+    if ! echo "$arg" | base64 -d > /dev/null 2>&1; then
         VALIDATION_FAILED=1
     else
         # Decode and validate format (should contain a colon)
-        DECODED=$(echo "$1" | base64 -d 2>/dev/null)
+        DECODED=$(echo "$arg" | base64 -d 2>/dev/null)
         if ! echo "$DECODED" | grep -q ':'; then
             VALIDATION_FAILED=1
         fi
@@ -38,10 +55,10 @@ if [ -n "$1" ]; then
         echo "Continuing - you'll be prompted for credentials..."
         echo ""
     else
-        export HUBBLE_CREDENTIALS="$1"
+        export HUBBLE_CREDENTIALS="$arg"
         echo "✓ Credentials provided"
     fi
-fi
+done
 
 GITHUB_REPO="HubbleNetwork/hubble-install"
 BINARY_NAME="hubble-install"
@@ -196,6 +213,7 @@ echo "🚀 Running installer..."
 echo ""
 
 # Run the installer from the user's original working directory
-"${TEMP_BINARY}"
+# Pass any extra arguments (e.g., a=false for analytics opt-out)
+"${TEMP_BINARY}" ${EXTRA_ARGS}
 
 # Temp directory and files will be cleaned up by trap on exit
