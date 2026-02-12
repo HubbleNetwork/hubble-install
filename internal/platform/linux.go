@@ -189,7 +189,7 @@ func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board, deviceName string) (
 	}
 
 	// Build the command
-	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
+	args := []string{"tool", "run", "--refresh", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken}
 	if deviceName != "" {
 		args = append(args, "-n", deviceName)
 	}
@@ -236,7 +236,7 @@ func (l *LinuxInstaller) GenerateHexFile(orgID, apiToken, board, deviceName stri
 	hexFilePath := filepath.Join(currentDir, filename)
 
 	// Build the command with -f for output file
-	args := []string{"tool", "run", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken, "-f", hexFilePath}
+	args := []string{"tool", "run", "--refresh", "--from", "pyhubbledemo", "hubbledemo", "flash", board, "-o", orgID, "-t", apiToken, "-f", hexFilePath}
 	if deviceName != "" {
 		args = append(args, "-n", deviceName)
 	}
