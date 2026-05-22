@@ -239,6 +239,15 @@ func main() {
 		exitWithError(0, "reboot_check", "reboot_required", 2)
 	}
 
+	// Fetch the supported board list (the source of truth is md.json in
+	// hubble-tldm). This needs network, but so does the rest of the install, so
+	// fail early with a clear message rather than continuing with no boards.
+	availableBoards, err := boards.FetchBoards()
+	if err != nil {
+		ui.PrintError(fmt.Sprintf("Could not load the supported board list: %v", err))
+		exitWithError(1, "fetch_boards", err.Error(), 1)
+	}
+
 	// =========================================================================
 	// Step 1: Get credentials (may include pre-configured board)
 	// =========================================================================
@@ -248,7 +257,7 @@ func main() {
 	tracker.TrackStep(currentStep, stepName)
 	ui.PrintStep("Configuring credentials", currentStep, totalSteps)
 
-	cfg, preConfigured, err := config.PromptForConfig()
+	cfg, preConfigured, err := config.PromptForConfig(availableBoards)
 	if err != nil {
 		ui.PrintError(fmt.Sprintf("Configuration failed: %v", err))
 		exitWithError(currentStep, stepName, err.Error(), 1)
@@ -275,7 +284,7 @@ func main() {
 	var selectedBoard boards.Board
 	if cfg.Board != "" {
 		// Board was pre-configured via credentials
-		board, err := boards.GetBoard(cfg.Board)
+		board, err := boards.GetBoard(availableBoards, cfg.Board)
 		if err != nil {
 			ui.PrintError(fmt.Sprintf("Invalid pre-configured board: %v", err))
 			exitWithError(currentStep, stepName, err.Error(), 1)
@@ -284,13 +293,13 @@ func main() {
 		ui.PrintSuccess(fmt.Sprintf("Using pre-configured board: %s", selectedBoard.Name))
 	} else {
 		// Prompt user to select a board
-		boardOptions := make([]string, len(boards.AvailableBoards))
-		for i, board := range boards.AvailableBoards {
-			boardOptions[i] = fmt.Sprintf("%s - %s (%s)", board.Name, board.Description, board.Vendor)
+		boardOptions := make([]string, len(availableBoards))
+		for i, board := range availableBoards {
+			boardOptions[i] = board.Name
 		}
 
 		selectedIndex := ui.PromptChoice("Available developer boards:", boardOptions)
-		selectedBoard = boards.AvailableBoards[selectedIndex]
+		selectedBoard = availableBoards[selectedIndex]
 		cfg.Board = selectedBoard.ID
 
 		ui.PrintSuccess(fmt.Sprintf("Selected: %s", selectedBoard.Name))
@@ -298,11 +307,10 @@ func main() {
 
 	fmt.Println()
 	if selectedBoard.RequiresJLink() {
-		ui.PrintInfo("This board uses SEGGER J-Link for direct flashing.")
+		ui.PrintInfo("This board is flashed directly via SEGGER J-Link.")
 		ui.PrintWarning("Make sure your board is connected via USB with a data-capable cable.")
 	} else {
-		ui.PrintInfo("This board uses TI Uniflash. A hex file will be generated for you.")
-		ui.PrintInfo("You'll need Uniflash installed to complete the flashing process.")
+		ui.PrintInfo("A firmware hex file will be generated for you to flash onto the board.")
 	}
 	fmt.Println()
 

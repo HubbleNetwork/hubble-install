@@ -66,7 +66,7 @@ func min(a, b int) int {
 
 // PromptForConfig prompts the user for all required configuration
 // Returns the config and a boolean indicating if credentials were pre-configured
-func PromptForConfig() (*Config, bool, error) {
+func PromptForConfig(availableBoards []boards.Board) (*Config, bool, error) {
 	config := &Config{}
 	preConfigured := false
 
@@ -89,7 +89,7 @@ func PromptForConfig() (*Config, bool, error) {
 						boardID := strings.TrimSpace(parts[2])
 						if boardID != "" {
 							// Validate board ID exists and resolve to canonical ID
-							board, err := boards.GetBoard(boardID)
+							board, err := boards.GetBoard(availableBoards, boardID)
 							if err != nil {
 								return nil, false, fmt.Errorf("invalid board_id from HUBBLE_CREDENTIALS: %w", err)
 							}

@@ -85,13 +85,10 @@ Learn about API access on our [Docs site](https://docs.hubble.com/docs/api-speci
 
 ## Supported Developer Boards
 
-### Nordic Semiconductor
-- nRF21540 DK
-- nRF52840 DK
-
-### Texas Instruments
-- TI CC2340R53 Launchpad
-- TI CC2340R5 Launchpad
+The installer loads the live list of supported boards at runtime from
+[`merge/md.json`](https://github.com/HubbleNetwork/hubble-tldm/blob/master/merge/md.json)
+in the Hubble TLDM repository, so it always reflects the latest supported
+hardware (Nordic, Texas Instruments, and more) without an installer update.
 
 You may access the firmware image source code for each supported board in the [Hubble TLDM](https://github.com/HubbleNetwork/hubble-tldm/tree/master) repository.
 

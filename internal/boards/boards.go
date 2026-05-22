@@ -1,20 +1,41 @@
 package boards
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"sort"
+	"time"
 
-// Flash methods
-const (
-	FlashMethodJLink    = "jlink"    // Direct flash via SEGGER J-Link
-	FlashMethodUniflash = "uniflash" // Generate hex file for TI Uniflash
+	"github.com/HubbleNetwork/hubble-install/internal/ui"
 )
+
+// Flash methods. These are md.json's own "method" values, consumed verbatim so
+// the installer and the manifest share one vocabulary rather than maintaining a
+// translated copy that can drift.
+const (
+	FlashMethodJLink = "jlink-flash"  // Direct flash via SEGGER J-Link
+	FlashMethodHex   = "generate-hex" // Generate a hex file to flash manually
+)
+
+// mdJSONURL is the source of truth for supported boards. It is maintained in the
+// hubble-tldm repo and also fetched by pyhubbledemo at flash time, so the
+// installer reads the same list rather than duplicating it.
+const mdJSONURL = "https://raw.githubusercontent.com/HubbleNetwork/hubble-tldm/master/merge/md.json"
 
 // Board represents a developer board that can be flashed
 type Board struct {
 	ID          string
 	Name        string
-	Description string
-	Vendor      string
-	FlashMethod string // "jlink" or "uniflash"
+	FlashMethod string // md.json "method": FlashMethodJLink or FlashMethodHex
+}
+
+// mdEntry mirrors the per-board shape of md.json. Only the fields the installer
+// needs are decoded; the rest (jlink_device, board_target, artifact, ...) are
+// consumed by pyhubbledemo.
+type mdEntry struct {
+	Name   string `json:"name"`
+	Method string `json:"method"` // "jlink-flash" or "generate-hex"
 }
 
 // RequiresJLink returns true if this board requires SEGGER J-Link
@@ -33,65 +54,68 @@ func (b *Board) GetDependencies() []string {
 	return []string{"uv"}
 }
 
-// Available boards for flashing
-var AvailableBoards = []Board{
-	{
-		ID:          "nrf21540dk",
-		Name:        "nRF21540 DK",
-		Description: "Nordic Semiconductor nRF21540 Development Kit",
-		Vendor:      "Nordic",
-		FlashMethod: FlashMethodJLink,
-	},
-	{
-		ID:          "nrf52840dk",
-		Name:        "nRF52840 DK",
-		Description: "Nordic Semiconductor nRF52840 Development Kit",
-		Vendor:      "Nordic",
-		FlashMethod: FlashMethodJLink,
-	},
-	{
-		ID:          "lp_em_cc2340r5",
-		Name:        "TI CC2340R5",
-		Description: "Texas Instruments CC2340R5 LaunchPad",
-		Vendor:      "Texas Instruments",
-		FlashMethod: FlashMethodUniflash,
-	},
-	{
-		ID:          "lp_em_cc2340r53",
-		Name:        "TI CC2340R53",
-		Description: "Texas Instruments CC2340R53 LaunchPad",
-		Vendor:      "Texas Instruments",
-		FlashMethod: FlashMethodUniflash,
-	},
-	// {
-	// 	ID:          "xg22_ek4108a",
-	// 	Name:        "xG22 EK4108A",
-	// 	Description: "Silicon Labs xG22 Explorer Kit",
-	// 	Vendor:      "Silicon Labs",
-	// },
-	// {
-	// 	ID:          "xg24_ek2703a",
-	// 	Name:        "xG24 EK2703A",
-	// 	Description: "Silicon Labs xG24 Explorer Kit",
-	// 	Vendor:      "Silicon Labs",
-	// },
+// FetchBoards downloads md.json from hubble-tldm and converts it to the
+// installer's board model. The tool requires network connectivity anyway
+// (pyhubbledemo fetches the same file and downloads firmware), so any failure
+// here is surfaced to the caller rather than masked with a stale fallback.
+func FetchBoards() ([]Board, error) {
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(mdJSONURL)
+	if err != nil {
+		return nil, fmt.Errorf("could not fetch the board list from %s: %w", mdJSONURL, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("could not fetch the board list from %s: HTTP %d", mdJSONURL, resp.StatusCode)
+	}
+
+	var raw map[string]mdEntry
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("could not parse the board list from %s: %w", mdJSONURL, err)
+	}
+
+	available := make([]Board, 0, len(raw))
+	for id, entry := range raw {
+		if !knownMethod(entry.Method) {
+			// Skip boards whose flash method the installer doesn't understand
+			// so a new upstream method can't break board selection entirely.
+			// Warn so a board going missing isn't silent (likely a stale installer).
+			ui.PrintWarning(fmt.Sprintf("Skipping board %q: unsupported flash method %q (this installer may be out of date)", id, entry.Method))
+			continue
+		}
+		available = append(available, Board{
+			ID:          id,
+			Name:        entry.Name,
+			FlashMethod: entry.Method,
+		})
+	}
+
+	if len(available) == 0 {
+		return nil, fmt.Errorf("no supported boards found in the board list at %s", mdJSONURL)
+	}
+
+	// md.json is a JSON object, so iteration order is random. Sort by name for a
+	// stable menu; because every name is vendor-prefixed, this groups vendors
+	// contiguously without a separate vendor field to keep in sync.
+	sort.Slice(available, func(i, j int) bool {
+		return available[i].Name < available[j].Name
+	})
+
+	return available, nil
 }
 
-// GetBoard returns a board by its ID
-func GetBoard(id string) (*Board, error) {
-	for _, board := range AvailableBoards {
-		if board.ID == id {
-			return &board, nil
+// knownMethod reports whether an md.json "method" is one the installer can flash.
+func knownMethod(method string) bool {
+	return method == FlashMethodJLink || method == FlashMethodHex
+}
+
+// GetBoard returns the board with the given ID from the provided list.
+func GetBoard(available []Board, id string) (*Board, error) {
+	for i := range available {
+		if available[i].ID == id {
+			return &available[i], nil
 		}
 	}
 	return nil, fmt.Errorf("board not found: %s", id)
-}
-
-// FormatBoardList returns a formatted string of all available boards
-func FormatBoardList() string {
-	result := ""
-	for i, board := range AvailableBoards {
-		result += fmt.Sprintf("%d. %s - %s\n", i+1, board.Name, board.Description)
-	}
-	return result
 }
