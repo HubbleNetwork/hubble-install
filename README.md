@@ -9,7 +9,7 @@ Cross-platform installer for Hubble Network developer boards. Flash Nordic and T
 **macOS/Linux:**
 
 ```bash
-curl -s get.hubble.com | bash
+curl -fsSL https://get.hubble.com | bash
 ```
 
 **Windows (PowerShell as Administrator):**
@@ -71,7 +71,7 @@ hubble-install
 When you copy the install command from the [Hubble Dashboard](https://dash.hubble.com), your credentials are included as a base64-encoded string:
 
 ```bash
-curl -s get.hubble.com | bash -s <base64-credentials>
+curl -fsSL https://get.hubble.com | bash -s <base64-credentials>
 ```
 
 This encoding:
