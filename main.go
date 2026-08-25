@@ -440,7 +440,7 @@ func main() {
 		// Track success and print J-Link completion banner
 		duration := time.Since(startTime)
 		tracker.TrackSuccess(duration.Seconds(), cfg.Board)
-		ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, result.DeviceName)
+		ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, result.DeviceName, selectedBoard.IsSatellite())
 
 	} else {
 		// Uniflash path: Generate hex file

@@ -195,8 +195,10 @@ func PromptChoice(prompt string, options []string) int {
 	}
 }
 
-// PrintCompletionBanner prints the success completion banner
-func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName string) {
+// PrintCompletionBanner prints the success completion banner.
+// When isSatellite is true (satnet_continuous / Satellite board images), the
+// terrestrial Connect-app bullets are replaced with Satellite Network guidance.
+func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName string, isSatellite bool) {
 	green.Print(`
 ╔═══════════════════════════════════════════════════════════╗
 ║     ✓ Installation Complete!                              ║
@@ -207,14 +209,25 @@ func PrintCompletionBanner(duration time.Duration, orgID, apiToken, deviceName s
 	fmt.Println()
 	green.Println("✓  What's next")
 	fmt.Println()
-	fmt.Printf("  • Your device \"%s\" is now broadcasting on the Hubble Terrestrial Network\n", deviceName)
-	fmt.Println()
-	fmt.Println("  • In Sandbox, you will need the Hubble Connect mobile app to scan for device packets")
-	fmt.Println()
-	fmt.Println()
-	fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
-	fmt.Println("║ Return to https://dash.hubble.com to capture device packets!     ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+	if isSatellite {
+		fmt.Printf("  • Your device \"%s\" is now broadcasting on the Hubble Satellite Network.\n", deviceName)
+		fmt.Println()
+		fmt.Println("  • Your device gets 1+ satellite passes per day. Place your device outdoors with a clear line-of-sight to the sky to transmit at the next opportunity.")
+		fmt.Println()
+		fmt.Println()
+		fmt.Println("╔══════════════════════════════════════════════════════════════════════════╗")
+		fmt.Println("║ Return to https://dash.hubble.com to view upcoming satellite passes.     ║")
+		fmt.Println("╚══════════════════════════════════════════════════════════════════════════╝")
+	} else {
+		fmt.Printf("  • Your device \"%s\" is now broadcasting on the Hubble Terrestrial Network\n", deviceName)
+		fmt.Println()
+		fmt.Println("  • In Sandbox, you will need the Hubble Connect mobile app to scan for device packets")
+		fmt.Println()
+		fmt.Println()
+		fmt.Println("╔══════════════════════════════════════════════════════════════════╗")
+		fmt.Println("║ Return to https://dash.hubble.com to capture device packets!     ║")
+		fmt.Println("╚══════════════════════════════════════════════════════════════════╝")
+	}
 	fmt.Println()
 
 	yellow.Println("Need help? Visit https://hubble.com/support/")
