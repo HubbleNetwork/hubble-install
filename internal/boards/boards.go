@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
@@ -28,19 +29,31 @@ type Board struct {
 	ID          string
 	Name        string
 	FlashMethod string // md.json "method": FlashMethodJLink or FlashMethodHex
+	Workspace   string // md.json "workspace" (e.g. zephyr, sat-zephyr)
 }
 
 // mdEntry mirrors the per-board shape of md.json. Only the fields the installer
 // needs are decoded; the rest (jlink_device, board_target, artifact, ...) are
 // consumed by pyhubbledemo.
 type mdEntry struct {
-	Name   string `json:"name"`
-	Method string `json:"method"` // "jlink-flash" or "generate-hex"
+	Name      string `json:"name"`
+	Method    string `json:"method"` // "jlink-flash" or "generate-hex"
+	Workspace string `json:"workspace"`
 }
 
 // RequiresJLink returns true if this board requires SEGGER J-Link
 func (b *Board) RequiresJLink() bool {
 	return b.FlashMethod == FlashMethodJLink
+}
+
+// IsSatellite reports whether this board flashes a satellite (satnet) image.
+// Satellite workspaces in md.json are prefixed with "sat-" (e.g. sat-zephyr);
+// board IDs for those images also conventionally end in "_sat".
+func (b *Board) IsSatellite() bool {
+	if strings.HasPrefix(b.Workspace, "sat-") {
+		return true
+	}
+	return strings.HasSuffix(b.ID, "_sat")
 }
 
 // GetDependencies returns the list of dependencies required for this board
@@ -88,6 +101,7 @@ func FetchBoards() ([]Board, error) {
 			ID:          id,
 			Name:        entry.Name,
 			FlashMethod: entry.Method,
+			Workspace:   entry.Workspace,
 		})
 	}
 
