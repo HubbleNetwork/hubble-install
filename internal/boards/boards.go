@@ -36,9 +36,9 @@ type Board struct {
 // needs are decoded; the rest (jlink_device, board_target, artifact, ...) are
 // consumed by pyhubbledemo.
 type mdEntry struct {
-	Name      string `json:"name"`
-	Method    string `json:"method"` // "jlink-flash" or "generate-hex"
-	Workspace string `json:"workspace"`
+	Name        string `json:"name"`
+	FlashMethod string `json:"method"` // one of the FlashMethod* constants
+	Workspace   string `json:"workspace"`
 }
 
 // RequiresJLink returns true if this board requires SEGGER J-Link
@@ -90,17 +90,17 @@ func FetchBoards() ([]Board, error) {
 
 	available := make([]Board, 0, len(raw))
 	for id, entry := range raw {
-		if !knownMethod(entry.Method) {
+		if !knownMethod(entry.FlashMethod) {
 			// Skip boards whose flash method the installer doesn't understand
 			// so a new upstream method can't break board selection entirely.
 			// Warn so a board going missing isn't silent (likely a stale installer).
-			ui.PrintWarning(fmt.Sprintf("Skipping board %q: unsupported flash method %q (this installer may be out of date)", id, entry.Method))
+			ui.PrintWarning(fmt.Sprintf("Skipping board %q: unsupported flash method %q (this installer may be out of date)", id, entry.FlashMethod))
 			continue
 		}
 		available = append(available, Board{
 			ID:          id,
 			Name:        entry.Name,
-			FlashMethod: entry.Method,
+			FlashMethod: entry.FlashMethod,
 			Workspace:   entry.Workspace,
 		})
 	}
