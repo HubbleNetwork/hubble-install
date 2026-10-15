@@ -15,8 +15,9 @@ import (
 // the installer and the manifest share one vocabulary rather than maintaining a
 // translated copy that can drift.
 const (
-	FlashMethodJLink = "jlink-flash"  // Direct flash via SEGGER J-Link
-	FlashMethodHex   = "generate-hex" // Generate a hex file to flash manually
+	FlashMethodJLink   = "jlink-flash"   // Direct flash via SEGGER J-Link
+	FlashMethodESPTool = "esptool-flash" // Direct flash over USB serial via esptool
+	FlashMethodHex     = "generate-hex"  // Generate a hex file to flash manually
 )
 
 // mdJSONURL is the source of truth for supported boards. It is maintained in the
@@ -28,7 +29,7 @@ const mdJSONURL = "https://raw.githubusercontent.com/HubbleNetwork/hubble-tldm/m
 type Board struct {
 	ID          string
 	Name        string
-	FlashMethod string // md.json "method": FlashMethodJLink or FlashMethodHex
+	FlashMethod string // md.json "method": one of the FlashMethod* constants
 	Workspace   string // md.json "workspace" (e.g. zephyr, sat-zephyr)
 }
 
@@ -44,6 +45,12 @@ type mdEntry struct {
 // RequiresJLink returns true if this board requires SEGGER J-Link
 func (b *Board) RequiresJLink() bool {
 	return b.FlashMethod == FlashMethodJLink
+}
+
+// FlashesDirectly reports whether pyhubbledemo writes the firmware onto a
+// connected board itself, rather than producing a hex file to flash manually.
+func (b *Board) FlashesDirectly() bool {
+	return b.FlashMethod == FlashMethodJLink || b.FlashMethod == FlashMethodESPTool
 }
 
 // IsSatellite reports whether this board flashes a satellite (satnet) image.
@@ -63,6 +70,11 @@ func (b *Board) GetDependencies() []string {
 		// - uv: to run our Python flashing tool (pyhubbledemo)
 		// - segger-jlink: provides J-Link drivers/DLLs that pylink-square uses
 		return []string{"uv", "segger-jlink"}
+	}
+	if b.FlashMethod == FlashMethodESPTool {
+		// esptool itself comes with pyhubbledemo, but the user also needs
+		// permission to open the board's USB serial port (set up on Linux).
+		return []string{"uv", "serial-port-access"}
 	}
 	return []string{"uv"}
 }
@@ -121,7 +133,7 @@ func FetchBoards() ([]Board, error) {
 
 // knownMethod reports whether an md.json "method" is one the installer can flash.
 func knownMethod(method string) bool {
-	return method == FlashMethodJLink || method == FlashMethodHex
+	return method == FlashMethodJLink || method == FlashMethodESPTool || method == FlashMethodHex
 }
 
 // GetBoard returns the board with the given ID from the provided list.

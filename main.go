@@ -306,8 +306,12 @@ func main() {
 	}
 
 	fmt.Println()
-	if selectedBoard.RequiresJLink() {
-		ui.PrintInfo("This board is flashed directly via SEGGER J-Link.")
+	if selectedBoard.FlashesDirectly() {
+		if selectedBoard.RequiresJLink() {
+			ui.PrintInfo("This board is flashed directly via SEGGER J-Link.")
+		} else {
+			ui.PrintInfo("This board is flashed directly over USB.")
+		}
 		ui.PrintWarning("Make sure your board is connected via USB with a data-capable cable.")
 	} else {
 		ui.PrintInfo("A firmware hex file will be generated for you to flash onto the board.")
@@ -417,8 +421,8 @@ func main() {
 	stepName = "flash"
 	tracker.TrackStep(currentStep, stepName)
 
-	if selectedBoard.RequiresJLink() {
-		// J-Link path: Direct flash
+	if selectedBoard.FlashesDirectly() {
+		// Direct flash path (J-Link or esptool)
 		if !ui.PromptYesNo(fmt.Sprintf("Would you like to flash your %s now?", selectedBoard.Name), true) {
 			ui.PrintWarning("Flashing skipped. You can flash later using:")
 			fmt.Printf("  uv tool run --from pyhubbledemo hubbledemo flash %s -o %s -t <your_token>\n", cfg.Board, cfg.OrgID)
@@ -437,7 +441,7 @@ func main() {
 			exitWithError(currentStep, stepName, err.Error(), 1)
 		}
 
-		// Track success and print J-Link completion banner
+		// Track success and print the flash completion banner
 		duration := time.Since(startTime)
 		tracker.TrackSuccess(duration.Seconds(), cfg.Board)
 		ui.PrintCompletionBanner(duration, cfg.OrgID, cfg.APIToken, result.DeviceName, selectedBoard.IsSatellite())

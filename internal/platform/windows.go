@@ -357,7 +357,7 @@ func (w *WindowsInstaller) InstallDependencies(deps []string) error {
 	return nil
 }
 
-// FlashBoard flashes the specified board using uvx (for J-Link boards)
+// FlashBoard flashes the specified board using uvx (J-Link and esptool boards)
 func (w *WindowsInstaller) FlashBoard(orgID, apiToken, board, deviceName string) (*FlashResult, error) {
 	ui.PrintInfo(fmt.Sprintf("Flashing board: %s", board))
 	ui.PrintInfo("This may take 10-15 seconds...")

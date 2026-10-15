@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/HubbleNetwork/hubble-install/internal/ui"
@@ -111,10 +112,73 @@ func (l *LinuxInstaller) CheckPrerequisites(requiredDeps []string) ([]MissingDep
 				fmt.Println("") // blank line
 				return nil, fmt.Errorf("J-Link must be installed before running this installer")
 			}
+		case "serial-port-access":
+			if !l.hasSerialPortAccess() {
+				missing = append(missing, MissingDependency{
+					Name:   "serial port access",
+					Status: "Not configured",
+				})
+			}
 		}
 	}
 
 	return missing, nil
+}
+
+// serialUdevRulePath and serialUdevRule let any user open the USB serial ports
+// ESP boards use, the way SEGGER's 99-jlink.rules does for J-Link probes. The
+// vendors match the ones pyhubbledemo probes: Espressif's built-in USB, Silicon
+// Labs CP210x, WCH CH34x and FTDI.
+const serialUdevRulePath = "/etc/udev/rules.d/99-hubble-serial.rules"
+
+const serialUdevRule = `# Installed by hubble-install: lets users flash ESP boards over USB serial
+SUBSYSTEM=="tty", ATTRS{idVendor}=="303a", MODE="0666"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", MODE="0666"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1a86", MODE="0666"
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", MODE="0666"
+`
+
+// hasSerialPortAccess reports whether the user can already open USB serial
+// ports: as root, through this session's dialout group (uucp on Arch), or
+// through the udev rule installed by installSerialUdevRule.
+func (l *LinuxInstaller) hasSerialPortAccess() bool {
+	if os.Geteuid() == 0 {
+		return true
+	}
+	if _, err := os.Stat(serialUdevRulePath); err == nil {
+		return true
+	}
+	// id -nG lists this session's groups, so a dialout membership that needs a
+	// fresh login to apply doesn't count.
+	out, err := exec.Command("id", "-nG").Output()
+	if err != nil {
+		return false
+	}
+	groups := strings.Fields(string(out))
+	return slices.Contains(groups, "dialout") || slices.Contains(groups, "uucp")
+}
+
+// installSerialUdevRule installs serialUdevRule and has udev reapply
+// permissions to connected devices, so the board can be flashed in this run.
+func (l *LinuxInstaller) installSerialUdevRule() error {
+	if err := l.ensureSudoAccess(); err != nil {
+		return err
+	}
+	tee := exec.Command("sudo", "tee", serialUdevRulePath)
+	tee.Stdin = strings.NewReader(serialUdevRule)
+	if out, err := tee.CombinedOutput(); err != nil {
+		return fmt.Errorf("writing %s: %w: %s", serialUdevRulePath, err, out)
+	}
+	for _, args := range [][]string{
+		{"udevadm", "control", "--reload-rules"},
+		{"udevadm", "trigger", "--subsystem-match=tty"},
+		{"udevadm", "settle"},
+	} {
+		if out, err := exec.Command("sudo", args...).CombinedOutput(); err != nil {
+			return fmt.Errorf("%s: %w: %s", strings.Join(args, " "), err, out)
+		}
+	}
+	return nil
 }
 
 // InstallPackageManager is not needed for Linux (uv and jlink use direct installers)
@@ -144,6 +208,16 @@ func (l *LinuxInstaller) InstallDependencies(deps []string) error {
 			if l.commandExists("JLinkExe") {
 				ui.PrintSuccess("segger-jlink already installed")
 			}
+		case "serial-port-access":
+			if l.hasSerialPortAccess() {
+				ui.PrintSuccess("serial port access already configured")
+				continue
+			}
+			ui.PrintInfo("Allowing access to USB serial ports (installs a udev rule, needs sudo)...")
+			if err := l.installSerialUdevRule(); err != nil {
+				return fmt.Errorf("failed to configure serial port access: %w", err)
+			}
+			ui.PrintSuccess("serial port access configured")
 		}
 	}
 
@@ -178,7 +252,7 @@ func (l *LinuxInstaller) installUV() error {
 	return nil
 }
 
-// FlashBoard flashes the specified board using uvx (for J-Link boards)
+// FlashBoard flashes the specified board using uvx (J-Link and esptool boards)
 func (l *LinuxInstaller) FlashBoard(orgID, apiToken, board, deviceName string) (*FlashResult, error) {
 	ui.PrintInfo(fmt.Sprintf("Flashing board: %s", board))
 	ui.PrintInfo("This may take 10-15 seconds...")
